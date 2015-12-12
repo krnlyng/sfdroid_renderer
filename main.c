@@ -23,8 +23,10 @@
 #include <GLES/glext.h>
 
 #include <fcntl.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <sys/ioctl.h>
+#include <sys/stat.h>
 #include <unistd.h>
 #include <errno.h>
 #include <sys/socket.h>
@@ -35,7 +37,9 @@
 #include <hardware/gralloc.h>
 #include <hardware/hardware.h>
 
-#define SHM_BUFFER_HANDLE_FILE "/tmp/gralloc_buffer_handle"
+#define SFDROID_ROOT "/tmp/sfdroid/"
+#define SHM_BUFFER_HANDLE_FILE (SFDROID_ROOT "/gralloc_buffer_handle")
+#define FOCUS_FILE (SFDROID_ROOT "/have_focus")
 
 // hmmm
 #define MAX_NUM_FDS 32
@@ -124,6 +128,11 @@ int send_status(int fd, int failed)
     return send(fd, message_buffer, sizeof(message_buffer), MSG_WAITALL | MSG_NOSIGNAL);
 }
 
+void touch(char *fname)
+{
+    fclose(fopen(fname, "w"));
+}
+
 int main(int argc, char *argv[])
 {
     gralloc_module_t *gralloc_module = NULL;
@@ -168,6 +177,12 @@ int main(int argc, char *argv[])
     printf("creating SDL GL context\n");
 #endif
     glcontext = SDL_GL_CreateContext(window);
+
+#if DEBUG
+    printf("setting up sfdroid directory\n");
+#endif
+    mkdir(SFDROID_ROOT, 0777);
+    touch(FOCUS_FILE);
 
 #if DEBUG
     printf("loading gralloc module\n");
@@ -320,6 +335,25 @@ int main(int argc, char *argv[])
                 err = 0;
                 goto quit;
             }
+
+            if(e.type == SDL_WINDOWEVENT)
+            {
+                switch(e.window.event)
+                {
+                    case SDL_WINDOWEVENT_FOCUS_LOST:
+#if DEBUG
+                        printf("focus lost\n");
+#endif
+                        unlink(FOCUS_FILE);
+                        break;
+                    case SDL_WINDOWEVENT_FOCUS_GAINED:
+#if DEBUG
+                        printf("focus gained\n");
+#endif
+                        touch(FOCUS_FILE);
+                        break;
+                }
+            }
         }
 
         if(fd_client < 0)
@@ -426,6 +460,8 @@ quit:
     if(window) SDL_DestroyWindow(window);
     if(fb_fd >= 0) close(fb_fd);
     unlink(SHM_BUFFER_HANDLE_FILE);
+    unlink(FOCUS_FILE);
+    rmdir(SFDROID_ROOT);
     if(fd_pass_socket >= 0) close(fd_pass_socket);
     if(fd_client >= 0) close(fd_client);
     if(the_buffer)
