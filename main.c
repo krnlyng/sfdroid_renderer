@@ -45,13 +45,22 @@
 #define MAX_NUM_FDS 32
 #define MAX_NUM_INTS 32
 
-int recv_native_handle(int fd, native_handle_t **handle)
+struct buffer_info_t
+{
+    uint32_t width;
+    uint32_t height;
+    uint32_t stride;
+    int32_t pixel_format;
+};
+
+int recv_native_handle(int fd, native_handle_t **handle, struct buffer_info_t *info)
 {
     struct msghdr socket_message;
     struct iovec io_vector[1];
     struct cmsghdr *control_message = NULL;
+    unsigned int buffer_size = sizeof(struct buffer_info_t) + sizeof(native_handle_t) + sizeof(int)*(MAX_NUM_FDS + MAX_NUM_INTS);
     unsigned int handle_size = sizeof(native_handle_t) + sizeof(int)*(MAX_NUM_FDS + MAX_NUM_INTS);
-    char message_buffer[handle_size];
+    char message_buffer[buffer_size];
     char ancillary_buffer[CMSG_SPACE(sizeof(int) * MAX_NUM_FDS)];
 
     *handle = malloc(handle_size);
@@ -61,7 +70,7 @@ int recv_native_handle(int fd, native_handle_t **handle)
     memset(ancillary_buffer, 0, CMSG_SPACE(sizeof(int) * MAX_NUM_FDS));
 
     io_vector[0].iov_base = message_buffer;
-    io_vector[0].iov_len = handle_size;
+    io_vector[0].iov_len = buffer_size;
     socket_message.msg_iov = io_vector;
     socket_message.msg_iovlen = 1;
 
@@ -81,7 +90,8 @@ int recv_native_handle(int fd, native_handle_t **handle)
         return -1;
     }
 
-    memcpy(*handle, message_buffer, sizeof(native_handle_t));
+    memcpy(info, message_buffer, sizeof(struct buffer_info_t));
+    memcpy(*handle, message_buffer + sizeof(struct buffer_info_t), sizeof(native_handle_t));
 
     if((*handle)->numFds > MAX_NUM_FDS)
     {
@@ -101,7 +111,7 @@ int recv_native_handle(int fd, native_handle_t **handle)
 
     *handle = realloc(*handle, sizeof(native_handle_t) + sizeof(int)*((*handle)->numFds + (*handle)->numInts));
 
-    memcpy((char*)*handle + sizeof(native_handle_t), message_buffer + sizeof(native_handle_t), sizeof(int)*((*handle)->numFds + (*handle)->numInts));
+    memcpy((char*)*handle + sizeof(native_handle_t), message_buffer + sizeof(struct buffer_info_t) + sizeof(native_handle_t), sizeof(int)*((*handle)->numFds + (*handle)->numInts));
 
     if(socket_message.msg_flags & MSG_CTRUNC)
     {
@@ -138,13 +148,15 @@ int main(int argc, char *argv[])
     gralloc_module_t *gralloc_module = NULL;
     native_handle_t *the_buffer = NULL;
     void *buffer_vaddr = NULL;
+    struct buffer_info_t buffer_info;
 
     int err = -1;
-    int fb_fd = -1;
     int registered = 0;
     int fd_pass_socket = -1;
     int fd_client = -1; // the client (sharebuffer module)
     struct sockaddr_un addr;
+
+    int fb_fd = 0;
     struct fb_var_screeninfo info;
     struct fb_fix_screeninfo finfo;
 
@@ -170,13 +182,28 @@ int main(int argc, char *argv[])
 #endif
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 1);
     window = SDL_CreateWindow("sfdroid", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, 0, 0, SDL_WINDOW_OPENGL | SDL_WINDOW_FULLSCREEN);
+    if(window == NULL)
+    {
+        fprintf(stderr, "failed to create SDL window\n");
+        err = 15;
+        goto quit;
+    }
 
     SDL_GetWindowSize(window, &win_width, &win_height);
+#if DEBUG
+    printf("window width: %d, height: %d\n", win_width, win_height);
+#endif
 
 #if DEBUG
     printf("creating SDL GL context\n");
 #endif
     glcontext = SDL_GL_CreateContext(window);
+    if(glcontext == NULL)
+    {
+        fprintf(stderr, "failed to create SDL GL Context\n");
+        err = 16;
+        goto quit;
+    }
 
 #if DEBUG
     printf("setting up sfdroid directory\n");
@@ -226,6 +253,16 @@ int main(int argc, char *argv[])
     }
 
 #if DEBUG
+    printf("waiting for client (sharebuffer module)\n");
+#endif
+    if((fd_client = accept(fd_pass_socket, NULL, NULL)) < 0)
+    {
+        fprintf(stderr, "failed to accept: %s\n", strerror(errno));
+        err = 12;
+        goto quit;
+    }
+
+#if DEBUG
     printf("getting some information from the framebuffer device\n");
 #endif
     fb_fd = open("/dev/fb0", O_RDONLY);
@@ -240,6 +277,7 @@ int main(int argc, char *argv[])
     {
         fprintf(stderr, "FBIOGET_FSCREENINFO ioctl failed: %s\n", strerror(errno));
         err = 5;
+        close(fb_fd);
         goto quit;
     }
 
@@ -247,40 +285,15 @@ int main(int argc, char *argv[])
     {
         fprintf(stderr, "FBIOGET_VSCREENINFO ioctl failed: %s\n", strerror(errno));
         err = 4;
+        close(fb_fd);
         goto quit;
     }
+
+    close(fb_fd);
 
 #if DEBUG
     printf("height: %d, width: %d, xres: %d, yres: %d, line_length: %d\n", info.height, info.width, info.xres, info.yres, finfo.line_length);
 #endif
-
-#if DEBUG
-    printf("waiting for client (sharebuffer module)\n");
-#endif
-    if((fd_client = accept(fd_pass_socket, NULL, NULL)) < 0)
-    {
-        fprintf(stderr, "failed to accept: %s\n", strerror(errno));
-        err = 12;
-        goto quit;
-    }
-
-    float vtxcoords[] = {
-        0.f, 0.f,
-        (float)win_width, 0.f,
-        0.f, (float)win_height,
-        (float)win_width, (float)win_height,
-    };
-
-    // TODO (hardcoded Nexus 5 buffer stride):
-    int n5_width = 1152, n5_height = 1813;
-    float xf = (float)info.xres / (float)n5_width;
-    float yf = 1.f;
-    float texcoords[] = {
-        0.f, 0.f,
-        xf, 0.f,
-        0.f, yf,
-        xf, yf,
-    };
 
 #if DEBUG
     printf("setting up gl\n");
@@ -300,9 +313,6 @@ int main(int argc, char *argv[])
     glEnableClientState(GL_VERTEX_ARRAY);
     glEnableClientState(GL_TEXTURE_COORD_ARRAY);
 
-    glVertexPointer(2, GL_FLOAT, 0, &vtxcoords);
-    glTexCoordPointer(2, GL_FLOAT, 0, &texcoords);
-
     GLuint tex;
     glGenTextures(1, &tex);
     glBindTexture(GL_TEXTURE_2D, tex);
@@ -311,17 +321,14 @@ int main(int argc, char *argv[])
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 
-    /* TODO: check when glTexImage2D is needed (npot) and if then use it correctly. */
-    if(info.bits_per_pixel == 32)
-    {
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, n5_width, n5_height, 0, GL_RGBA,
-                GL_UNSIGNED_BYTE, NULL);
-    }
-    else
-    {
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, info.xres, info.yres, 0, GL_RGB,
-                GL_UNSIGNED_BYTE, NULL);
-    }
+    float vtxcoords[] = {
+        0.f, 0.f,
+        (float)win_width, 0.f,
+        0.f, (float)win_height,
+        (float)win_width, (float)win_height,
+    };
+
+    glVertexPointer(2, GL_FLOAT, 0, &vtxcoords);
 
     SDL_Event e;
     GLint gl_err;
@@ -374,7 +381,7 @@ int main(int argc, char *argv[])
 #if DEBUG
         printf("waiting for handle\n");
 #endif
-        if(recv_native_handle(fd_client, &the_buffer) < 0)
+        if(recv_native_handle(fd_client, &the_buffer, &buffer_info) < 0)
         {
             fprintf(stderr, "lost client\n");
             close(fd_client);
@@ -382,6 +389,22 @@ int main(int argc, char *argv[])
             failed = 1;
             goto save_end_loop;
         }
+
+#if DEBUG
+        printf("buffer info:\n");
+        printf("width: %d, height: %d, stride: %d, pixel_format: %d\n", buffer_info.width, buffer_info.height, buffer_info.stride, buffer_info.pixel_format);
+#endif
+
+        float xf = (float)win_width / (float)buffer_info.stride;
+        float yf = 1.f;
+        float texcoords[] = {
+            0.f, 0.f,
+            xf, 0.f,
+            0.f, yf,
+            xf, yf,
+        };
+
+        glTexCoordPointer(2, GL_FLOAT, 0, &texcoords);
 
         gerr = gralloc_module->registerBuffer(gralloc_module, the_buffer);
         if(gerr)
@@ -406,15 +429,23 @@ int main(int argc, char *argv[])
 #if DEBUG
         printf("drawing buffer\n");
 #endif
-        if(info.bits_per_pixel == 32)
+        if(buffer_info.pixel_format == HAL_PIXEL_FORMAT_RGBA_8888)
         {
-            glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, n5_width, n5_height,
+            int actual_height = ((finfo.line_length / 4) * info.yres) / buffer_info.stride;
+            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, buffer_info.stride, actual_height, 0,
                     GL_RGBA, GL_UNSIGNED_BYTE, buffer_vaddr);
+
+        }
+        else if(buffer_info.pixel_format == HAL_PIXEL_FORMAT_RGB_565)
+        {
+            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, buffer_info.stride, buffer_info.height, 0,
+                    GL_RGB, GL_UNSIGNED_SHORT_5_6_5, buffer_vaddr);
         }
         else
         {
-            glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, info.xres, info.yres,
-                    GL_RGB, GL_UNSIGNED_SHORT_5_6_5, buffer_vaddr);
+            fprintf(stderr, "unhandled pixel format: %d\n", buffer_info.pixel_format);
+            err = 14;
+            goto quit;
         }
         gl_err = glGetError();
         if(gl_err != GL_NO_ERROR) fprintf(stderr, "glGetError(): %d\n", gl_err);
@@ -456,9 +487,9 @@ save_end_loop:
     }
 
 quit:
+    glDeleteTextures(1, &tex);
     if(glcontext) SDL_GL_DeleteContext(glcontext);
     if(window) SDL_DestroyWindow(window);
-    if(fb_fd >= 0) close(fb_fd);
     unlink(SHM_BUFFER_HANDLE_FILE);
     unlink(FOCUS_FILE);
     rmdir(SFDROID_ROOT);
