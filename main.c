@@ -156,10 +156,6 @@ int main(int argc, char *argv[])
     int fd_client = -1; // the client (sharebuffer module)
     struct sockaddr_un addr;
 
-    int fb_fd = 0;
-    struct fb_var_screeninfo info;
-    struct fb_fix_screeninfo finfo;
-
     int gerr = 0;
 
     int win_width, win_height;
@@ -261,39 +257,6 @@ int main(int argc, char *argv[])
         err = 12;
         goto quit;
     }
-
-#if DEBUG
-    printf("getting some information from the framebuffer device\n");
-#endif
-    fb_fd = open("/dev/fb0", O_RDONLY);
-    if(fb_fd < 0)
-    {
-        fprintf(stderr, "error opening /dev/fb0: %s\n", strerror(errno));
-        err = 1;
-        goto quit;
-    }
-
-    if(ioctl(fb_fd, FBIOGET_FSCREENINFO, &finfo) == -1)
-    {
-        fprintf(stderr, "FBIOGET_FSCREENINFO ioctl failed: %s\n", strerror(errno));
-        err = 5;
-        close(fb_fd);
-        goto quit;
-    }
-
-    if(ioctl(fb_fd, FBIOGET_VSCREENINFO, &info) == -1)
-    {
-        fprintf(stderr, "FBIOGET_VSCREENINFO ioctl failed: %s\n", strerror(errno));
-        err = 4;
-        close(fb_fd);
-        goto quit;
-    }
-
-    close(fb_fd);
-
-#if DEBUG
-    printf("height: %d, width: %d, xres: %d, yres: %d, line_length: %d\n", info.height, info.width, info.xres, info.yres, finfo.line_length);
-#endif
 
 #if DEBUG
     printf("setting up gl\n");
@@ -417,7 +380,7 @@ int main(int argc, char *argv[])
 
         gerr = gralloc_module->lock(gralloc_module, the_buffer,
             GRALLOC_USAGE_SW_READ_RARELY,
-            0, 0, info.xres, info.yres,
+            0, 0, buffer_info.width, buffer_info.height,
             &buffer_vaddr);
         if(gerr)
         {
@@ -431,8 +394,7 @@ int main(int argc, char *argv[])
 #endif
         if(buffer_info.pixel_format == HAL_PIXEL_FORMAT_RGBA_8888)
         {
-            int actual_height = ((finfo.line_length / 4) * info.yres) / buffer_info.stride;
-            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, buffer_info.stride, actual_height, 0,
+            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, buffer_info.stride, buffer_info.height, 0,
                     GL_RGBA, GL_UNSIGNED_BYTE, buffer_vaddr);
 
         }
