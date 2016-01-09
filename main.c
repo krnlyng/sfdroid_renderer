@@ -37,9 +37,12 @@
 #include <hardware/gralloc.h>
 #include <hardware/hardware.h>
 
-#define SFDROID_ROOT "/tmp/sfdroid/"
+#include <linux/input.h>
+#include <linux/uinput.h>
+
+#define SFDROID_ROOT "/tmp/sfdroid"
 #define SHM_BUFFER_HANDLE_FILE (SFDROID_ROOT "/gralloc_buffer_handle")
-#define FOCUS_FILE (SFDROID_ROOT "/have_focus")
+#define RUNNING_FILE (SFDROID_ROOT "/running")
 
 // hmmm
 #define MAX_NUM_FDS 32
@@ -138,6 +141,25 @@ int send_status(int fd, int failed)
     return send(fd, message_buffer, sizeof(message_buffer), MSG_WAITALL | MSG_NOSIGNAL);
 }
 
+
+int send_uinput_event(int fd, int type, int code, int value)
+{
+    struct input_event ev;
+
+    gettimeofday(&ev.time, NULL);
+
+    ev.type = type;
+    ev.code = code;
+    ev.value = value;
+
+    if(write(fd, &ev, sizeof(ev)) < 0)
+    {
+        return 0;
+    }
+
+    return 1;
+}
+
 void touch(char *fname)
 {
     fclose(fopen(fname, "w"));
@@ -159,6 +181,11 @@ int main(int argc, char *argv[])
     int gerr = 0;
 
     int win_width, win_height;
+
+    int fd_uinput = -1;
+    struct uinput_user_dev uidev;
+    int uinput_dev_created = 0;
+    int have_focus = 1;
 
     SDL_Window *window = NULL;
     SDL_GLContext *glcontext = NULL;
@@ -205,7 +232,6 @@ int main(int argc, char *argv[])
     printf("setting up sfdroid directory\n");
 #endif
     mkdir(SFDROID_ROOT, 0777);
-    touch(FOCUS_FILE);
 
 #if DEBUG
     printf("loading gralloc module\n");
@@ -224,6 +250,123 @@ int main(int argc, char *argv[])
         err = 9;
         goto quit;
     }
+
+#if DEBUG
+    printf("setting up uinput\n");
+#endif
+    // try different uinput device nodes
+    int errnos[3];
+    fd_uinput = open("/dev/uinput", O_WRONLY | O_NONBLOCK);
+    errnos[0] = errno;
+    if(fd_uinput < 0)
+    {
+        fd_uinput = open("/dev/input/uinput", O_WRONLY | O_NONBLOCK);
+        errnos[1] = errno;
+    }
+    if(fd_uinput < 0)
+    {
+        fd_uinput = open("/dev/misc/uinput", O_WRONLY | O_NONBLOCK);
+        errnos[2] = errno;
+    }
+    if(fd_uinput < 0)
+    {
+        fprintf(stderr, "failed to open uinput device:\n");
+        fprintf(stderr, "/dev/uinput: %s\n", strerror(errnos[0]));
+        fprintf(stderr, "/dev/input/uinput: %s\n", strerror(errnos[1]));
+        fprintf(stderr, "/dev/misc/uinput: %s\n", strerror(errnos[2]));
+        for(int i=0;i<sizeof(errnos)/sizeof(int);i++)
+        {
+            if(errnos[i] == EACCES)
+            {
+                fprintf(stderr, "wrong permissions, did you reboot?\n");
+                break;
+            }
+        }
+        err = 17;
+        goto quit;
+    }
+
+    if(ioctl(fd_uinput, UI_SET_EVBIT, EV_SYN) < 0)
+    {
+        fprintf(stderr, "UI_SET_EVBIT EV_SYN ioctl failed\n");
+        err = 20;
+        goto quit;
+    }
+
+    if(ioctl(fd_uinput, UI_SET_EVBIT, EV_ABS) < 0)
+    {
+        fprintf(stderr, "UI_SET_EVBIT EV_ABS ioctl failed\n");
+        err = 21;
+        goto quit;
+    }
+
+    if(ioctl(fd_uinput, UI_SET_ABSBIT, ABS_MT_TRACKING_ID) < 0)
+    {
+        fprintf(stderr, "UI_SET_ABSBIT ABS_MT_TRACKING_ID ioctl failed\n");
+        err = 22;
+        goto quit;
+    }
+
+    if(ioctl(fd_uinput, UI_SET_ABSBIT, ABS_MT_SLOT) < 0)
+    {
+        fprintf(stderr, "UI_SET_ABSBIT ABS_MT_SLOT ioctl failed\n");
+        err = 23;
+        goto quit;
+    }
+
+    if(ioctl(fd_uinput, UI_SET_ABSBIT, ABS_MT_POSITION_X) < 0)
+    {
+        fprintf(stderr, "UI_SET_ABSBIT ABS_MT_POSITION_X ioctl failed\n");
+        err = 24;
+        goto quit;
+    }
+
+    if(ioctl(fd_uinput, UI_SET_ABSBIT, ABS_MT_POSITION_Y) < 0)
+    {
+        fprintf(stderr, "UI_SET_ABSBIT ABS_MT_POSITION_Y ioctl failed\n");
+        err = 25;
+        goto quit;
+    }
+
+    if(ioctl(fd_uinput, UI_SET_PROPBIT, INPUT_PROP_DIRECT) < 0)
+    {
+        fprintf(stderr, "UI_SET_PROPBIT INPUT_PROP_DIRECT ioctl failed\n");
+        err = 26;
+        goto quit;
+    }
+
+    memset(&uidev, 0, sizeof(uidev));
+
+    snprintf(uidev.name, UINPUT_MAX_NAME_SIZE, "sfdroid-input");
+
+    uidev.absmin[ABS_MT_POSITION_X] = 0;
+    uidev.absmax[ABS_MT_POSITION_X] = win_width;
+    uidev.absmin[ABS_MT_POSITION_Y] = 0;
+    uidev.absmax[ABS_MT_POSITION_Y] = win_height;
+    // hmm
+    uidev.absmax[ABS_MT_SLOT] = 255;
+    uidev.absmax[ABS_MT_TRACKING_ID] = 255;
+
+    uidev.id.bustype = BUS_VIRTUAL;
+    // hmm
+    uidev.id.vendor = 0x1;
+    uidev.id.product = 0x1;
+    uidev.id.version = 1;
+
+    if(write(fd_uinput, &uidev, sizeof(uidev)) < 0)
+    {
+        fprintf(stderr, "failed to write sfdroid-input structure to uinput: %s\n", strerror(errno));
+        err = 18;
+        goto quit;
+    }
+
+    if(ioctl(fd_uinput, UI_DEV_CREATE) < 0)
+    {
+        fprintf(stderr, "failed to create sfdroid-input uinput device: %s\n", strerror(errno));
+        err = 19;
+        goto quit;
+    }
+    uinput_dev_created = 1;
 
     memset(&addr, 0, sizeof(addr));
     addr.sun_family = AF_UNIX;
@@ -293,6 +436,11 @@ int main(int argc, char *argv[])
 
     glVertexPointer(2, GL_FLOAT, 0, &vtxcoords);
 
+#if DEBUG
+    printf("notifying EventHub of startup\n");
+#endif
+    touch(RUNNING_FILE);
+
     SDL_Event e;
     GLint gl_err;
     int failed = 0;
@@ -314,13 +462,51 @@ int main(int argc, char *argv[])
 #if DEBUG
                         printf("focus lost\n");
 #endif
-                        unlink(FOCUS_FILE);
+                        have_focus = 0;
                         break;
                     case SDL_WINDOWEVENT_FOCUS_GAINED:
 #if DEBUG
                         printf("focus gained\n");
 #endif
-                        touch(FOCUS_FILE);
+                        have_focus = 1;
+                        break;
+                }
+            }
+
+            if(have_focus)
+            {
+#if DEBUG
+                int m = 0;
+#endif
+                switch(e.type)
+                {
+                    case SDL_FINGERUP:
+#if DEBUG
+                        printf("SDL_FINGERUP\n");
+#endif
+                        send_uinput_event(fd_uinput, EV_ABS, ABS_MT_SLOT, e.tfinger.fingerId);
+                        send_uinput_event(fd_uinput, EV_ABS, ABS_MT_TRACKING_ID, -1);
+                        send_uinput_event(fd_uinput, EV_SYN, SYN_REPORT, 0);
+                        break;
+                    case SDL_FINGERMOTION:
+#if DEBUG
+                        printf("SDL_FINGERMOTION\n");
+                        m = 1;
+#endif
+                    case SDL_FINGERDOWN:
+#if DEBUG
+                        if(!m)
+                        {
+                            printf("SDL_FINGERDOWN\n");
+                        }
+#endif
+                        send_uinput_event(fd_uinput, EV_ABS, ABS_MT_SLOT, e.tfinger.fingerId);
+                        send_uinput_event(fd_uinput, EV_ABS, ABS_MT_TRACKING_ID, e.tfinger.fingerId); // hmm
+                        send_uinput_event(fd_uinput, EV_ABS, ABS_MT_POSITION_X, e.tfinger.x);
+                        send_uinput_event(fd_uinput, EV_ABS, ABS_MT_POSITION_Y, e.tfinger.y);
+                        send_uinput_event(fd_uinput, EV_SYN, SYN_REPORT, e.tfinger.fingerId);
+                        break;
+                    default:
                         break;
                 }
             }
@@ -449,12 +635,14 @@ save_end_loop:
     }
 
 quit:
+    unlink(RUNNING_FILE);
     glDeleteTextures(1, &tex);
     if(glcontext) SDL_GL_DeleteContext(glcontext);
     if(window) SDL_DestroyWindow(window);
     unlink(SHM_BUFFER_HANDLE_FILE);
-    unlink(FOCUS_FILE);
     rmdir(SFDROID_ROOT);
+    if(uinput_dev_created) ioctl(fd_uinput, UI_DEV_DESTROY);
+    if(fd_uinput >= 0) close(fd_uinput);
     if(fd_pass_socket >= 0) close(fd_pass_socket);
     if(fd_client >= 0) close(fd_client);
     if(the_buffer)
