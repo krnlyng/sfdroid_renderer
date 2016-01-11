@@ -45,6 +45,8 @@
 #define MAX_NUM_FDS 32
 #define MAX_NUM_INTS 32
 
+#define SHAREBUFFER_SOCKET_TIMEOUT_NS 500000
+
 struct buffer_info_t
 {
     uint32_t width;
@@ -82,9 +84,9 @@ int recv_native_handle(int fd, native_handle_t **handle, struct buffer_info_t *i
     control_message->cmsg_level = SOL_SOCKET;
     control_message->cmsg_type = SCM_RIGHTS;
 
-    if(recvmsg(fd, &socket_message, MSG_CMSG_CLOEXEC | MSG_WAITALL) < 0)
+    if(recvmsg(fd, &socket_message, MSG_CMSG_CLOEXEC) < 0)
     {
-        fprintf(stderr, "recvmsg failed: %s\n", strerror(errno));
+        if(errno != ETIMEDOUT && errno != EAGAIN) fprintf(stderr, "recvmsg failed: %s\n", strerror(errno));
         free(*handle);
         *handle = NULL;
         return -1;
@@ -258,6 +260,15 @@ int main(int argc, char *argv[])
         goto quit;
     }
 
+    struct timespec timeout;
+    memset(&timeout, 0, sizeof(timeout));
+    timeout.tv_nsec = SHAREBUFFER_SOCKET_TIMEOUT_NS;
+
+    if(setsockopt(fd_client, SOL_SOCKET, SO_RCVTIMEO, (char *)&timeout, sizeof(timeout)) < 0)
+    {
+        fprintf(stderr, "failed to set timeout on sharebuffer socket: %s\n", strerror(errno));
+    }
+
 #if DEBUG
     printf("setting up gl\n");
 #endif
@@ -337,6 +348,10 @@ int main(int argc, char *argv[])
                 err = 13;
                 goto quit;
             }
+            if(setsockopt(fd_client, SOL_SOCKET, SO_RCVTIMEO, (char *)&timeout, sizeof(timeout)) < 0)
+            {
+                fprintf(stderr, "failed to set timeout on sharebuffer socket: %s\n", strerror(errno));
+            }
         }
 
         failed = 0;
@@ -344,8 +359,14 @@ int main(int argc, char *argv[])
 #if DEBUG
         printf("waiting for handle\n");
 #endif
-        if(recv_native_handle(fd_client, &the_buffer, &buffer_info) < 0)
+        int r = recv_native_handle(fd_client, &the_buffer, &buffer_info);
+        if(r < 0)
         {
+            if(errno == ETIMEDOUT || errno == EAGAIN)
+            {
+                continue;
+            }
+
             fprintf(stderr, "lost client\n");
             close(fd_client);
             fd_client = -1;
