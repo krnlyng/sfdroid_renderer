@@ -392,7 +392,7 @@ int main(int argc, char *argv[])
 #if DEBUG
         printf("drawing buffer\n");
 #endif
-        if(buffer_info.pixel_format == HAL_PIXEL_FORMAT_RGBA_8888)
+        if(buffer_info.pixel_format == HAL_PIXEL_FORMAT_RGBA_8888 || buffer_info.pixel_format == HAL_PIXEL_FORMAT_RGBX_8888)
         {
             glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, buffer_info.stride, buffer_info.height, 0,
                     GL_RGBA, GL_UNSIGNED_BYTE, buffer_vaddr);
