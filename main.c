@@ -251,6 +251,11 @@ int main(int argc, char *argv[])
     }
 
 #if DEBUG
+    printf("waking up android\n");
+    wakeup_android();
+#endif
+
+#if DEBUG
     printf("waiting for client (sharebuffer module)\n");
 #endif
     if((fd_client = accept(fd_pass_socket, NULL, NULL)) < 0)
@@ -332,6 +337,7 @@ int main(int argc, char *argv[])
                         printf("focus gained\n");
 #endif
                         touch(FOCUS_FILE);
+                        system("/usr/bin/sfdroid_powerup");
                         break;
                 }
             }
@@ -339,6 +345,10 @@ int main(int argc, char *argv[])
 
         if(fd_client < 0)
         {
+#if DEBUG
+            printf("waking up android\n");
+            wakeup_android();
+#endif
 #if DEBUG
             printf("waiting for client (sharebuffer module)\n");
 #endif
