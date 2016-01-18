@@ -145,6 +145,11 @@ void touch(char *fname)
     fclose(fopen(fname, "w"));
 }
 
+void wakeup_android()
+{
+    system("/usr/bin/sfdroid_powerup");
+}
+
 int main(int argc, char *argv[])
 {
     gralloc_module_t *gralloc_module = NULL;
@@ -309,6 +314,11 @@ int main(int argc, char *argv[])
 
     glVertexPointer(2, GL_FLOAT, 0, &vtxcoords);
 
+#if DEBUG
+    printf("waking up android\n");
+    wakeup_android();
+#endif
+
     SDL_Event e;
     GLint gl_err;
     int failed = 0;
@@ -337,7 +347,10 @@ int main(int argc, char *argv[])
                         printf("focus gained\n");
 #endif
                         touch(FOCUS_FILE);
-                        system("/usr/bin/sfdroid_powerup");
+#if DEBUG
+                        printf("waking up android\n");
+#endif
+                        wakeup_android();
                         break;
                 }
             }
