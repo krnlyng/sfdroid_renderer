@@ -318,11 +318,6 @@ int main(int argc, char *argv[])
 
     glVertexPointer(2, GL_FLOAT, 0, &vtxcoords);
 
-#if DEBUG
-    printf("waking up android\n");
-    wakeup_android();
-#endif
-
     SDL_Event e;
     GLint gl_err;
     int failed = 0;
