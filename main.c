@@ -34,11 +34,13 @@
 
 #include <linux/fb.h>
 
+//#include <grp.h>
+
 #include <hardware/gralloc.h>
 #include <hardware/hardware.h>
 
-#define SFDROID_ROOT "/tmp/sfdroid/"
-#define SHM_BUFFER_HANDLE_FILE (SFDROID_ROOT "/gralloc_buffer_handle")
+#define SFDROID_ROOT "/tmp/sfdroid"
+#define SHAREBUFFER_HANDLE_FILE (SFDROID_ROOT "/gralloc_buffer_handle")
 #define FOCUS_FILE (SFDROID_ROOT "/have_focus")
 
 // hmmm
@@ -211,7 +213,7 @@ int main(int argc, char *argv[])
 #if DEBUG
     printf("setting up sfdroid directory\n");
 #endif
-    mkdir(SFDROID_ROOT, 0777);
+    mkdir(SFDROID_ROOT, 0770);
     touch(FOCUS_FILE);
 
 #if DEBUG
@@ -234,26 +236,28 @@ int main(int argc, char *argv[])
 
     memset(&addr, 0, sizeof(addr));
     addr.sun_family = AF_UNIX;
-    strncpy(addr.sun_path, SHM_BUFFER_HANDLE_FILE, sizeof(addr.sun_path)-1);
+    strncpy(addr.sun_path, SHAREBUFFER_HANDLE_FILE, sizeof(addr.sun_path)-1);
 
-    unlink(SHM_BUFFER_HANDLE_FILE);
+    unlink(SHAREBUFFER_HANDLE_FILE);
 
     if(bind(fd_pass_socket, (struct sockaddr*)&addr, sizeof(addr)) < 0)
     {
-        fprintf(stderr, "failed to bind socket %s: %s\n", SHM_BUFFER_HANDLE_FILE, strerror(errno));
+        fprintf(stderr, "failed to bind socket %s: %s\n", SHAREBUFFER_HANDLE_FILE, strerror(errno));
         err = 10;
         goto quit;
     }
 
 #if DEBUG
-    printf("listening on %s\n", SHM_BUFFER_HANDLE_FILE);
+    printf("listening on %s\n", SHAREBUFFER_HANDLE_FILE);
 #endif
     if(listen(fd_pass_socket, 5) < 0)
     {
-        fprintf(stderr, "failed to listen on socket %s: %s\n", SHM_BUFFER_HANDLE_FILE, strerror(errno));
+        fprintf(stderr, "failed to listen on socket %s: %s\n", SHAREBUFFER_HANDLE_FILE, strerror(errno));
         err = 11;
         goto quit;
     }
+
+    chmod(SHAREBUFFER_HANDLE_FILE, 0770);
 
 #if DEBUG
     printf("waking up android\n");
@@ -496,7 +500,7 @@ quit:
     glDeleteTextures(1, &tex);
     if(glcontext) SDL_GL_DeleteContext(glcontext);
     if(window) SDL_DestroyWindow(window);
-    unlink(SHM_BUFFER_HANDLE_FILE);
+    unlink(SHAREBUFFER_HANDLE_FILE);
     unlink(FOCUS_FILE);
     rmdir(SFDROID_ROOT);
     if(fd_pass_socket >= 0) close(fd_pass_socket);
