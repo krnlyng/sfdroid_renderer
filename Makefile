@@ -1,16 +1,16 @@
 OUT         := sfdroid
-SRC         := main.c
+SRC         := main.cpp renderer.cpp sfdroid_funcs.cpp sfconnection.cpp utility.cpp
 OBJ         := $(patsubst %.c, %.o, $(filter %.c, $(SRC)))
 OBJ         += $(patsubst %.cpp, %.o, $(filter %.cpp, $(SRC)))
 DEP         := $(OBJ:.o=.d)
 
 CFLAGS      := -Wall -Werror -std=gnu99
-CXXFLAGS    := -Wall -Werror
+CXXFLAGS    := -Wall -Werror -std=c++11
 LDFLAGS     :=
 LDLIBS      :=
 
 CFLAGS		+= `pkg-config --cflags sdl2` `pkg-config --cflags glesv1_cm` -I/usr/include/android
-CXXLAGS		+= `pkg-config --cflags sdl2` `pkg-config --cflags glesv1_cm` -I/usr/include/android
+CXXFLAGS	+= `pkg-config --cflags sdl2` `pkg-config --cflags glesv1_cm` -I/usr/include/android
 
 LDLIBS		+= `pkg-config --libs sdl2` `pkg-config --libs glesv1_cm` -lhardware
 
