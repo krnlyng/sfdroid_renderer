@@ -14,6 +14,8 @@ class renderer_t {
         renderer_t() : window(NULL), glcontext(NULL), gralloc_module(NULL) {}
         int init();
         int render_buffer(native_handle_t *the_buffer, buffer_info_t &info);
+        int get_height();
+        int get_width();
         void deinit();
 
     private:

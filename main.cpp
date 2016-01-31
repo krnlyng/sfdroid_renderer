@@ -27,6 +27,7 @@
 #include "renderer.h"
 #include "sfconnection.h"
 #include "utility.h"
+#include "uinput.h"
 
 using namespace std;
 
@@ -37,15 +38,17 @@ int main(int argc, char *argv[])
     native_handle_t *handle = NULL;
     buffer_info_t info;
     int timedout = 0;
+    int have_focus = 0;
 
     sfconnection_t sfconnection;
     renderer_t renderer;
+    uinput_t uinput;
+    int first_fingerId = -1; // needed because first slot must be 0
 
 #if DEBUG
     cout << "setting up sfdroid directory" << endl;
 #endif
     mkdir(SFDROID_ROOT, 0770);
-    touch(FOCUS_FILE);
 
     if(sfconnection.init() != 0)
     {
@@ -56,6 +59,15 @@ int main(int argc, char *argv[])
     if(renderer.init() != 0)
     {
         err = 2;
+        goto quit;
+    }
+
+#if DEBUG
+    cout << "setting up uinput" << endl;
+#endif
+    if(uinput.init(renderer.get_width(), renderer.get_height()) != 0)
+    {
+        err = 5;
         goto quit;
     }
 
@@ -87,22 +99,58 @@ int main(int argc, char *argv[])
                 {
                     case SDL_WINDOWEVENT_FOCUS_LOST:
 #if DEBUG
-                        cout << "focus lost" << endl;
+                        printf("focus lost\n");
 #endif
-                        unlink(FOCUS_FILE);
+                        have_focus = 0;
                         break;
                     case SDL_WINDOWEVENT_FOCUS_GAINED:
 #if DEBUG
-                        cout << "focus gained" << endl;
-#endif
-                        touch(FOCUS_FILE);
-#if DEBUG
-                        cout << "waking up android" << endl;
+                        printf("focus gained\n");
 #endif
                         wakeup_android();
+                        have_focus = 1;
                         break;
                 }
             }
+
+            if(have_focus)
+            {
+#if DEBUG
+                int m = 0;
+#endif
+                switch(e.type)
+                {
+                    case SDL_FINGERUP:
+#if DEBUG
+                        printf("SDL_FINGERUP\n");
+#endif
+                        uinput.send_event(EV_ABS, ABS_MT_SLOT, (e.tfinger.fingerId == first_fingerId) ? 0 : e.tfinger.fingerId);
+                        uinput.send_event(EV_ABS, ABS_MT_TRACKING_ID, -1);
+                        uinput.send_event(EV_SYN, SYN_REPORT, 0);
+                        if(e.tfinger.fingerId == first_fingerId) first_fingerId = -1;
+                        break;
+                    case SDL_FINGERMOTION:
+#if DEBUG
+                        printf("SDL_FINGERMOTION\n");
+                        m = 1;
+#endif
+                    case SDL_FINGERDOWN:
+#if DEBUG
+                        if(!m) printf("SDL_FINGERDOWN\n");
+#endif
+                        if(first_fingerId == -1) first_fingerId = e.tfinger.fingerId;
+
+                        uinput.send_event(EV_ABS, ABS_MT_SLOT, (e.tfinger.fingerId == first_fingerId) ? 0 : e.tfinger.fingerId);
+                        uinput.send_event(EV_ABS, ABS_MT_TRACKING_ID, e.tfinger.fingerId);
+                        uinput.send_event(EV_ABS, ABS_MT_POSITION_X, e.tfinger.x);
+                        uinput.send_event(EV_ABS, ABS_MT_POSITION_Y, e.tfinger.y);
+                        uinput.send_event(EV_ABS, ABS_MT_PRESSURE, e.tfinger.pressure * MAX_PRESSURE);
+                        uinput.send_event(EV_SYN, SYN_REPORT, e.tfinger.fingerId);
+                        break;
+                    default:
+                         break;
+                 }
+             }
         }
 
         if(!sfconnection.have_client())
@@ -129,9 +177,9 @@ int main(int argc, char *argv[])
     }
 
 quit:
+    uinput.deinit();
     renderer.deinit();
     sfconnection.deinit();
-    unlink(FOCUS_FILE);
     rmdir(SFDROID_ROOT);
     return err;
 }

@@ -202,3 +202,13 @@ quit:
     return err;
 }
 
+int renderer_t::get_height()
+{
+    return win_height;
+}
+
+int renderer_t::get_width()
+{
+    return win_width;
+}
+
