@@ -38,7 +38,7 @@ int main(int argc, char *argv[])
     native_handle_t *handle = NULL;
     buffer_info_t info;
     int timedout = 0;
-    int have_focus = 0;
+    int have_focus = 1;
 
     sfconnection_t sfconnection;
     renderer_t renderer;
@@ -82,9 +82,39 @@ int main(int argc, char *argv[])
         goto quit;
     }
 
+#if DEBUG
+    cout << "new client" << endl;
+#endif
+
     SDL_Event e;
     for(;;)
     {
+        while(!have_focus)
+        {
+            if(SDL_WaitEvent(&e))
+            {
+                if(e.type == SDL_QUIT)
+                {
+                    err = 0;
+                    goto quit;
+                }
+
+                if(e.type == SDL_WINDOWEVENT)
+                {
+                    switch(e.window.event)
+                    {
+                        case SDL_WINDOWEVENT_FOCUS_GAINED:
+#if DEBUG
+                            printf("focus gained\n");
+#endif
+                            wakeup_android();
+                            have_focus = 1;
+                            break;
+                    }
+                }
+            }
+        }
+
         while(SDL_PollEvent(&e))
         {
             if(e.type == SDL_QUIT)
@@ -102,13 +132,6 @@ int main(int argc, char *argv[])
                         printf("focus lost\n");
 #endif
                         have_focus = 0;
-                        break;
-                    case SDL_WINDOWEVENT_FOCUS_GAINED:
-#if DEBUG
-                        printf("focus gained\n");
-#endif
-                        wakeup_android();
-                        have_focus = 1;
                         break;
                 }
             }
@@ -164,6 +187,9 @@ int main(int argc, char *argv[])
                 err = 4;
                 goto quit;
             }
+#if DEBUG
+            cout << "new client" << endl;
+#endif
         }
 
         if(sfconnection.wait_for_buffer(&handle, &info, timedout) == 0)

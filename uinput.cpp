@@ -35,7 +35,7 @@ int uinput_t::init(int win_width, int win_height)
 {
     int err = 0;
 #if DEBUG
-    cout << "setting up uinput\n" << endl;
+    cout << "setting up uinput" << endl;
 #endif
     // try different uinput device nodes
     int errnos[3];
