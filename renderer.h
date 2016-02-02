@@ -16,7 +16,8 @@ class renderer_t {
         int render_buffer(native_handle_t *the_buffer, buffer_info_t &info);
         int get_height();
         int get_width();
-        void swap();
+        int dummy_draw(int pixel_format);
+        int draw_raw(void *data, int width, int height, int pixel_format);
         void deinit();
 
     private:

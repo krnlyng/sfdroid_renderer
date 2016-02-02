@@ -123,26 +123,6 @@ int renderer_t::render_buffer(native_handle_t *the_buffer, buffer_info_t &info)
     int registered = 0;
     int err = 0;
     int gerr = 0;
-    GLuint gl_err = 0;
-
-    float xf = (float)win_width / (float)info.stride;
-    float yf = 1.f;
-    float texcoords[] = {
-        0.f, 0.f,
-        xf, 0.f,
-        0.f, yf,
-        xf, yf,
-    };
-
-    float vtxcoords[] = {
-        0.f, 0.f,
-        (float)win_width, 0.f,
-        0.f, (float)win_height,
-        (float)win_width, (float)win_height,
-    };
-
-    glVertexPointer(2, GL_FLOAT, 0, &vtxcoords);
-    glTexCoordPointer(2, GL_FLOAT, 0, &texcoords);
 
     gerr = gralloc_module->registerBuffer(gralloc_module, the_buffer);
     if(gerr)
@@ -167,28 +147,10 @@ int renderer_t::render_buffer(native_handle_t *the_buffer, buffer_info_t &info)
 #if DEBUG
     cout << "drawing buffer" << endl;
 #endif
-    if(info.pixel_format == HAL_PIXEL_FORMAT_RGBA_8888 || info.pixel_format == HAL_PIXEL_FORMAT_RGBX_8888)
-    {
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, info.stride, info.height, 0,
-                GL_RGBA, GL_UNSIGNED_BYTE, buffer_vaddr);
-
-    }
-    else if(info.pixel_format == HAL_PIXEL_FORMAT_RGB_565)
-    {
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, info.stride, info.height, 0,
-                GL_RGB, GL_UNSIGNED_SHORT_5_6_5, buffer_vaddr);
-    }
-    else
-    {
-        cerr << "unhandled pixel format: " << info.pixel_format << endl;
-        err = 3;
-        goto quit;
-    }
-    gl_err = glGetError();
-    if(gl_err != GL_NO_ERROR) cout << "glGetError(): " << gl_err << endl;
-
-    glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
-    SDL_GL_SwapWindow(window);
+    glMatrixMode(GL_PROJECTION);
+    glLoadIdentity();
+    glOrthof(0, win_width, win_height, 0, 0, 1);
+    draw_raw(buffer_vaddr, info.stride, info.height, info.pixel_format);
 
     gralloc_module->unlock(gralloc_module, the_buffer);
 
@@ -202,9 +164,91 @@ quit:
     return err;
 }
 
-void renderer_t::swap()
+int renderer_t::draw_raw(void *data, int width, int height, int pixel_format)
 {
+    int err = 0;
+    GLuint gl_err = 0;
+
+    float xf = (float)win_width / (float)width;
+    float yf = 1.f;
+    float texcoords[] = {
+        0.f, 0.f,
+        xf, 0.f,
+        0.f, yf,
+        xf, yf,
+    };
+
+    float vtxcoords[] = {
+        0.f, 0.f,
+        (float)win_width, 0.f,
+        0.f, (float)win_height,
+        (float)win_width, (float)win_height,
+    };
+
+    glVertexPointer(2, GL_FLOAT, 0, &vtxcoords);
+    glTexCoordPointer(2, GL_FLOAT, 0, &texcoords); 
+
+    if(pixel_format == HAL_PIXEL_FORMAT_RGBA_8888 || pixel_format == HAL_PIXEL_FORMAT_RGBX_8888)
+    {
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0,
+                GL_RGBA, GL_UNSIGNED_BYTE, data);
+
+    }
+    else if(pixel_format == HAL_PIXEL_FORMAT_RGB_565)
+    {
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0,
+                GL_RGB, GL_UNSIGNED_SHORT_5_6_5, data);
+    }
+    else
+    {
+        cerr << "unhandled pixel format: " << pixel_format << endl;
+        err = 3;
+        goto quit;
+    }
+    gl_err = glGetError();
+    if(gl_err != GL_NO_ERROR) cout << "glGetError(): " << gl_err << endl;
+
+    glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
     SDL_GL_SwapWindow(window);
+
+quit:
+    return err;
+}
+
+int renderer_t::dummy_draw(int pixel_format)
+{
+    int err = 0;
+    GLubyte *data;
+
+    if(pixel_format == HAL_PIXEL_FORMAT_RGBA_8888 || pixel_format == HAL_PIXEL_FORMAT_RGBX_8888)
+    {
+        data = (GLubyte*)malloc(4 * win_width * win_height);
+        glReadPixels(0, 0, win_width, win_height, GL_RGBA, GL_UNSIGNED_BYTE, data);
+    }
+    else if(pixel_format == HAL_PIXEL_FORMAT_RGB_565)
+    {
+        data = (GLubyte*)malloc(4 * win_width * win_height);
+        glReadPixels(0, 0, win_width, win_height, GL_RGB, GL_UNSIGNED_SHORT_5_6_5, data);
+    }
+    else
+    {
+        cerr << "unhandled pixel format: " << pixel_format << endl;
+        err = 1;
+        goto quit;
+    }
+
+#if DEBUG
+    cout << "dummy draw" << endl;
+#endif
+    glMatrixMode(GL_PROJECTION);
+    glLoadIdentity();
+    glOrthof(0, win_width, 0, win_height, 0, 1);
+    draw_raw(data, win_width, win_height, pixel_format);
+
+    free(data);
+
+quit:
+    return err;
 }
 
 int renderer_t::get_height()

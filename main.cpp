@@ -101,9 +101,8 @@ int main(int argc, char *argv[])
                 }
                 else if(e.user.code == NO_BUFFER)
                 {
-                    // dummy swap to avoid unresponsive error
-                    renderer.swap();
-                    renderer.swap();
+                    // dummy render to avoid unresponsive error
+                    renderer.dummy_draw(sfconnection.get_current_info()->pixel_format);
                 }
             }
 
