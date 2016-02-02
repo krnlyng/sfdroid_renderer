@@ -61,7 +61,7 @@ int uinput_t::init(int win_width, int win_height)
         {
             if(errnos[i] == EACCES)
             {
-                cerr << "wrong permissions, did you reboot?" << endl;
+                cerr << "wrong permissions, allow nemo to use uinput." << endl;
                 break;
             }
         }
