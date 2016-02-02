@@ -18,17 +18,20 @@
  *
  */
 
-#include "sfconnection.h"
-
 #include <iostream>
 
 #include <sys/socket.h>
 #include <sys/un.h>
 #include <sys/stat.h>
 
+#include <SDL.h>
+
+#include "sfconnection.h"
+#include "utility.h"
+
 using namespace std;
 
-int sfconnection_t::init()
+int sfconnection_t::init(uint32_t the_sdl_event)
 {
     int err = 0;
     struct sockaddr_un addr;
@@ -66,11 +69,13 @@ int sfconnection_t::init()
 
     chmod(SHAREBUFFER_HANDLE_FILE, 0770);
 
+    sdl_event = the_sdl_event;
+
 quit:
     return err;
 }
 
-int sfconnection_t::wait_for_buffer(native_handle_t **handle, buffer_info_t *info, int &timedout)
+int sfconnection_t::wait_for_buffer(int &timedout)
 {
     int err = 0;
 
@@ -79,7 +84,7 @@ int sfconnection_t::wait_for_buffer(native_handle_t **handle, buffer_info_t *inf
 #if DEBUG
     cout << "waiting for handle" << endl;
 #endif
-    int r = recv_native_handle(fd_client, handle, info);
+    int r = recv_native_handle(fd_client, &current_handle, &current_info);
     if(r < 0)
     {
         if(errno == ETIMEDOUT || errno == EAGAIN)
@@ -97,35 +102,42 @@ int sfconnection_t::wait_for_buffer(native_handle_t **handle, buffer_info_t *inf
 
 #if DEBUG
     cout << "buffer info:" << endl;
-    cout << "width: " << info->width << " height: " << info->height << " stride: " << info->stride << " pixel_format: " << info->pixel_format << endl;
+    cout << "width: " << current_info.width << " height: " << current_info.height << " stride: " << current_info.stride << " pixel_format: " << current_info.pixel_format << endl;
 #endif
     quit:
     return err;
 }
 
-void sfconnection_t::send_status_and_cleanup(native_handle_t **handle, int failed)
+void sfconnection_t::send_status_and_cleanup()
 {
-    const native_handle_t *the_buffer = *handle;
-
-    for(int i=0;i<the_buffer->numFds;i++)
+    for(int i=0;i<current_handle->numFds;i++)
     {
-        close(the_buffer->data[i]);
+        close(current_handle->data[i]);
     }
-    free((void*)the_buffer);
-    *handle = NULL;
+    free((void*)current_handle);
 
     if(fd_client >= 0)
     {
 #if DEBUG
         cout << "sending status" << endl;
 #endif
-        if(send_status(fd_client, failed) < 0)
+        if(send_status(fd_client, current_status) < 0)
         {
             cerr << "lost client" << endl;
             close(fd_client);
             fd_client = -1;
         }
     }
+}
+
+buffer_info_t *sfconnection_t::get_current_info()
+{
+    return &current_info;
+}
+
+native_handle_t *sfconnection_t::get_current_handle()
+{
+    return current_handle;
 }
 
 int sfconnection_t::wait_for_client()
@@ -142,21 +154,141 @@ int sfconnection_t::wait_for_client()
         goto quit;
     }
 
-    struct timespec timeout;
+    update_timeout();
+
+quit:
+    return err;
+}
+
+void sfconnection_t::update_timeout()
+{
+    struct timeval timeout;
     memset(&timeout, 0, sizeof(timeout));
-    timeout.tv_nsec = SHAREBUFFER_SOCKET_TIMEOUT_NS;
+
+    if(have_focus)
+    {
+        timeout.tv_usec = SHAREBUFFER_SOCKET_TIMEOUT_US;
+    }
+    else
+    {
+        timeout.tv_sec = SHAREBUFFER_SOCKET_FOCUS_LOST_TIMEOUT_S;
+    }
 
     if(setsockopt(fd_client, SOL_SOCKET, SO_RCVTIMEO, (char *)&timeout, sizeof(timeout)) < 0)
     {
         cerr << "failed to set timeout on sharebuffer socket: " << strerror(errno) << endl;
     }
-quit:
-    return err;
+}
+
+void sfconnection_t::thread_loop()
+{
+    running = true;
+
+    while(running)
+    {
+        if(have_client()) update_timeout();
+
+        if(!have_client())
+        {
+#if DEBUG
+            cout << "waking up android" << endl;
+#endif
+            wakeup_android();
+            if(wait_for_client() != 0)
+            {
+                cerr << "waiting for client failed" << endl;
+            }
+#if DEBUG
+            else
+            {
+                cout << "new client" << endl;
+            }
+#endif
+        }
+
+        if(have_client())
+        {
+            int timedout = 0;
+            if(wait_for_buffer(timedout) == 0)
+            {
+                if(!timedout)
+                {
+                    buffer_done = false;
+
+                    // tell the renderer to draw the buffer
+                    SDL_Event event;
+                    SDL_memset(&event, 0, sizeof(event));
+                    event.type = sdl_event;
+                    event.user.code = BUFFER;
+                    SDL_PushEvent(&event);
+
+                    while(!buffer_done)
+                    {
+                        if(!running) break;
+                    }
+
+                    // let sharebuffer know were done
+                    send_status_and_cleanup();
+
+                    timeout_count = 0;
+                }
+                else
+                {
+                    if((timeout_count * SHAREBUFFER_SOCKET_TIMEOUT_US) / 1000 >= DUMMY_RENDER_TIMEOUT_MS)
+                    {                        
+                        SDL_Event event;
+                        SDL_memset(&event, 0, sizeof(event));
+                        event.type = sdl_event;
+                        event.user.code = NO_BUFFER;
+                        SDL_PushEvent(&event);
+
+                        while(!buffer_done)
+                        {
+                            if(!running) break;
+                        }
+
+                        timeout_count = 0;
+                    }
+
+                    timeout_count++;
+                }
+            }
+        }
+
+        std::this_thread::yield();
+    }
+}
+
+void sfconnection_t::release_buffer(int failed)
+{
+    current_status = failed;
+    buffer_done = true;
+}
+
+void sfconnection_t::start_thread()
+{
+    my_thread = std::thread(&sfconnection_t::thread_loop, this);
+}
+
+void sfconnection_t::stop_thread()
+{
+    running = false;
+    my_thread.join();
 }
 
 bool sfconnection_t::have_client()
 {
     return (fd_client >= 0);
+}
+
+void sfconnection_t::lost_focus()
+{
+    have_focus = false;
+}
+
+void sfconnection_t::gained_focus()
+{
+    have_focus = true;
 }
 
 void sfconnection_t::deinit()

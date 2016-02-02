@@ -8,7 +8,12 @@
 #define MAX_NUM_FDS 32
 #define MAX_NUM_INTS 32
 
-#define SHAREBUFFER_SOCKET_TIMEOUT_NS 500000
+#define DUMMY_RENDER_TIMEOUT_MS 250
+#define NO_BUFFER 0
+#define BUFFER 1
+#define SHAREBUFFER_SOCKET_TIMEOUT_US 250000
+// something very big...
+#define SHAREBUFFER_SOCKET_FOCUS_LOST_TIMEOUT_S 60*60*24
 
 #include <cstdint>
 

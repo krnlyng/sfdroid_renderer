@@ -202,6 +202,11 @@ quit:
     return err;
 }
 
+void renderer_t::swap()
+{
+    SDL_GL_SwapWindow(window);
+}
+
 int renderer_t::get_height()
 {
     return win_height;

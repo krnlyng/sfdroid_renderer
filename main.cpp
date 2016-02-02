@@ -35,9 +35,6 @@ int main(int argc, char *argv[])
 {
     int err = 0;
 
-    native_handle_t *handle = NULL;
-    buffer_info_t info;
-    int timedout = 0;
     int have_focus = 1;
 
     sfconnection_t sfconnection;
@@ -45,18 +42,22 @@ int main(int argc, char *argv[])
     uinput_t uinput;
     int first_fingerId = -1; // needed because first slot must be 0
 
+    uint32_t our_sdl_event = 0;
+
 #if DEBUG
     cout << "setting up sfdroid directory" << endl;
 #endif
     mkdir(SFDROID_ROOT, 0770);
 
-    if(sfconnection.init() != 0)
+    if(renderer.init() != 0)
     {
         err = 1;
         goto quit;
     }
 
-    if(renderer.init() != 0)
+    our_sdl_event = SDL_RegisterEvents(1);
+
+    if(sfconnection.init(our_sdl_event) != 0)
     {
         err = 2;
         goto quit;
@@ -71,56 +72,39 @@ int main(int argc, char *argv[])
         goto quit;
     }
 
-#if DEBUG
-    cout << "waking up android" << endl;
-#endif
-    wakeup_android();
-
-    if(sfconnection.wait_for_client() != 0)
-    {
-        err = 3;
-        goto quit;
-    }
-
-#if DEBUG
-    cout << "new client" << endl;
-#endif
+    sfconnection.start_thread();
 
     SDL_Event e;
     for(;;)
     {
-        while(!have_focus)
-        {
-            if(SDL_WaitEvent(&e))
-            {
-                if(e.type == SDL_QUIT)
-                {
-                    err = 0;
-                    goto quit;
-                }
-
-                if(e.type == SDL_WINDOWEVENT)
-                {
-                    switch(e.window.event)
-                    {
-                        case SDL_WINDOWEVENT_FOCUS_GAINED:
-#if DEBUG
-                            printf("focus gained\n");
-#endif
-                            wakeup_android();
-                            have_focus = 1;
-                            break;
-                    }
-                }
-            }
-        }
-
-        while(SDL_PollEvent(&e))
+        while(SDL_WaitEvent(&e))
         {
             if(e.type == SDL_QUIT)
             {
                 err = 0;
                 goto quit;
+            }
+
+            if(e.type == our_sdl_event)
+            {
+                if(e.user.code == BUFFER)
+                {
+                    // sfconnection has a new buffer
+                    native_handle_t *handle;
+                    buffer_info_t *info;
+
+                    handle = sfconnection.get_current_handle();
+                    info = sfconnection.get_current_info();
+
+                    int failed = renderer.render_buffer(handle, *info);
+                    sfconnection.release_buffer(failed);
+                }
+                else if(e.user.code == NO_BUFFER)
+                {
+                    // dummy swap to avoid unresponsive error
+                    renderer.swap();
+                    renderer.swap();
+                }
             }
 
             if(e.type == SDL_WINDOWEVENT)
@@ -132,6 +116,15 @@ int main(int argc, char *argv[])
                         printf("focus lost\n");
 #endif
                         have_focus = 0;
+                        sfconnection.lost_focus();
+                        break;
+                    case SDL_WINDOWEVENT_FOCUS_GAINED:
+#if DEBUG
+                        printf("focus gained\n");
+#endif
+                        wakeup_android();
+                        sfconnection.gained_focus();
+                        have_focus = 1;
                         break;
                 }
             }
@@ -175,36 +168,12 @@ int main(int argc, char *argv[])
                  }
              }
         }
-
-        if(!sfconnection.have_client())
-        {
-#if DEBUG
-            cout << "waking up android" << endl;
-#endif
-            wakeup_android();
-            if(sfconnection.wait_for_client() != 0)
-            {
-                err = 4;
-                goto quit;
-            }
-#if DEBUG
-            cout << "new client" << endl;
-#endif
-        }
-
-        if(sfconnection.wait_for_buffer(&handle, &info, timedout) == 0)
-        {
-            if(!timedout)
-            {
-                int failed = renderer.render_buffer(handle, info);
-                sfconnection.send_status_and_cleanup(&handle, failed);
-            }
-        }
     }
 
 quit:
     uinput.deinit();
     renderer.deinit();
+    sfconnection.stop_thread();
     sfconnection.deinit();
     rmdir(SFDROID_ROOT);
     return err;
