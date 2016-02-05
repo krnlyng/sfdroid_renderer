@@ -15,6 +15,8 @@
 // something very big...
 #define SHAREBUFFER_SOCKET_FOCUS_LOST_TIMEOUT_S 60*60*24
 
+#define SLEEPTIME_NO_FOCUS_US 500000
+
 #include <cstdint>
 
 struct buffer_info_t

@@ -77,7 +77,15 @@ int main(int argc, char *argv[])
     SDL_Event e;
     for(;;)
     {
-        while(SDL_WaitEvent(&e))
+        if(!have_focus)
+        {
+#if DEBUG
+            cout << "sleeping" << endl;
+#endif
+            usleep(SLEEPTIME_NO_FOCUS_US);
+        }
+
+        while(SDL_WaitEventTimeout(&e, 16))
         {
             if(e.type == SDL_QUIT)
             {
