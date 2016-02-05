@@ -120,14 +120,14 @@ int main(int argc, char *argv[])
                 {
                     case SDL_WINDOWEVENT_FOCUS_LOST:
 #if DEBUG
-                        printf("focus lost\n");
+                        cout << "focus lost" << endl;
 #endif
                         have_focus = 0;
                         sfconnection.lost_focus();
                         break;
                     case SDL_WINDOWEVENT_FOCUS_GAINED:
 #if DEBUG
-                        printf("focus gained\n");
+                        cout << "focus gained" << endl;
 #endif
                         wakeup_android();
                         sfconnection.gained_focus();
@@ -145,7 +145,7 @@ int main(int argc, char *argv[])
                 {
                     case SDL_FINGERUP:
 #if DEBUG
-                        printf("SDL_FINGERUP\n");
+                        cout << "SDL_FINGERUP" << endl;
 #endif
                         uinput.send_event(EV_ABS, ABS_MT_SLOT, (e.tfinger.fingerId == first_fingerId) ? 0 : e.tfinger.fingerId);
                         uinput.send_event(EV_ABS, ABS_MT_TRACKING_ID, -1);
@@ -154,12 +154,12 @@ int main(int argc, char *argv[])
                         break;
                     case SDL_FINGERMOTION:
 #if DEBUG
-                        printf("SDL_FINGERMOTION\n");
+                        cout << "SDL_FINGERMOTION" << endl;
                         m = 1;
 #endif
                     case SDL_FINGERDOWN:
 #if DEBUG
-                        if(!m) printf("SDL_FINGERDOWN\n");
+                        if(!m) cout << "SDL_FINGERDOWN" << endl;
 #endif
                         if(first_fingerId == -1) first_fingerId = e.tfinger.fingerId;
 
