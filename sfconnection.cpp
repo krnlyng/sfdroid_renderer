@@ -274,6 +274,7 @@ void sfconnection_t::start_thread()
 void sfconnection_t::stop_thread()
 {
     running = false;
+    shutdown(fd_client, SHUT_RDWR);
     my_thread.join();
 }
 
