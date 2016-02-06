@@ -11,17 +11,20 @@
 
 class renderer_t {
     public:
-        renderer_t() : window(NULL), glcontext(NULL), gralloc_module(NULL) {}
+        renderer_t() : last_pixel_format(-1), last_screen(nullptr), window(nullptr), glcontext(nullptr), gralloc_module(nullptr) {}
         int init();
         int render_buffer(native_handle_t *the_buffer, buffer_info_t &info);
         int get_height();
         int get_width();
-        int dummy_draw(int pixel_format);
+        int save_screen(int pixel_format);
+        int dummy_draw();
         int draw_raw(void *data, int width, int height, int pixel_format);
         void deinit();
 
     private:
         int win_width, win_height;
+        int last_pixel_format;
+        void *last_screen;
         GLuint tex;
 
         SDL_Window *window;

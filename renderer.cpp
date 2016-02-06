@@ -70,6 +70,8 @@ int renderer_t::init()
         goto quit;
     }
 
+    SDL_GL_SetSwapInterval(1);
+
 #if DEBUG
     cout << "setting up gl" << endl;
 #endif
@@ -112,6 +114,8 @@ quit:
 void renderer_t::deinit()
 {
     glDeleteTextures(1, &tex);
+    if(last_screen) free(last_screen);
+    last_screen = nullptr;
     if(glcontext) SDL_GL_DeleteContext(glcontext);
     if(window) SDL_DestroyWindow(window);
     SDL_Quit();
@@ -215,20 +219,22 @@ quit:
     return err;
 }
 
-int renderer_t::dummy_draw(int pixel_format)
+int renderer_t::save_screen(int pixel_format)
 {
-    int err = 0;
-    GLubyte *data;
+    int err;
+
+    if(last_screen) free(last_screen);
+    last_screen = nullptr;
 
     if(pixel_format == HAL_PIXEL_FORMAT_RGBA_8888 || pixel_format == HAL_PIXEL_FORMAT_RGBX_8888)
     {
-        data = (GLubyte*)malloc(4 * win_width * win_height);
-        glReadPixels(0, 0, win_width, win_height, GL_RGBA, GL_UNSIGNED_BYTE, data);
+        last_screen = (GLubyte*)malloc(4 * win_width * win_height);
+        glReadPixels(0, 0, win_width, win_height, GL_RGBA, GL_UNSIGNED_BYTE, last_screen);
     }
     else if(pixel_format == HAL_PIXEL_FORMAT_RGB_565)
     {
-        data = (GLubyte*)malloc(4 * win_width * win_height);
-        glReadPixels(0, 0, win_width, win_height, GL_RGB, GL_UNSIGNED_SHORT_5_6_5, data);
+        last_screen = (GLubyte*)malloc(4 * win_width * win_height);
+        glReadPixels(0, 0, win_width, win_height, GL_RGB, GL_UNSIGNED_SHORT_5_6_5, last_screen);
     }
     else
     {
@@ -237,18 +243,26 @@ int renderer_t::dummy_draw(int pixel_format)
         goto quit;
     }
 
+    last_pixel_format = pixel_format;
+
+quit:
+    return err;
+}
+
+int renderer_t::dummy_draw()
+{
 #if DEBUG
     cout << "dummy draw" << endl;
 #endif
     glMatrixMode(GL_PROJECTION);
     glLoadIdentity();
     glOrthof(0, win_width, 0, win_height, 0, 1);
-    draw_raw(data, win_width, win_height, pixel_format);
+    if(last_screen != nullptr)
+    {
+        return draw_raw(last_screen, win_width, win_height, last_pixel_format);
+    }
 
-    free(data);
-
-quit:
-    return err;
+    return -1;
 }
 
 int renderer_t::get_height()

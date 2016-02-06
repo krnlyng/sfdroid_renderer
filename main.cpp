@@ -35,6 +35,8 @@ int main(int argc, char *argv[])
 {
     int err = 0;
 
+    bool new_buffer = false;
+
     int have_focus = 1;
 
     sfconnection_t sfconnection;
@@ -43,6 +45,10 @@ int main(int argc, char *argv[])
     int first_fingerId = -1; // needed because first slot must be 0
 
     uint32_t our_sdl_event = 0;
+
+    unsigned int last_time = 0, current_time = 0;
+    int frames = 0;
+    int timeout_count = 0;
 
 #if DEBUG
     cout << "setting up sfdroid directory" << endl;
@@ -85,7 +91,7 @@ int main(int argc, char *argv[])
             usleep(SLEEPTIME_NO_FOCUS_US);
         }
 
-        while(SDL_WaitEventTimeout(&e, 16))
+        while(SDL_WaitEventTimeout(&e, 1000))
         {
             if(e.type == SDL_QUIT)
             {
@@ -106,11 +112,40 @@ int main(int argc, char *argv[])
 
                     int failed = renderer.render_buffer(handle, *info);
                     sfconnection.release_buffer(failed);
+
+                    new_buffer = true;
+                    frames++;
+                    timeout_count = 0;
                 }
                 else if(e.user.code == NO_BUFFER)
                 {
-                    // dummy render to avoid unresponsive error
-                    renderer.dummy_draw(sfconnection.get_current_info()->pixel_format);
+                    if((timeout_count * SHAREBUFFER_SOCKET_TIMEOUT_US) / 1000 >= DUMMY_RENDER_TIMEOUT_MS)
+                    {
+                        if(new_buffer) renderer.save_screen(sfconnection.get_current_info()->pixel_format);
+                        // dummy draw to avoid unresponive message
+                        renderer.dummy_draw();
+                        frames++;
+
+                        new_buffer = false;
+                        timeout_count = 0;
+                    }
+                    else timeout_count++;
+
+                    if(have_focus)
+                    {
+#if DEBUG
+                        cout << "wakeing up android" << endl;
+#endif
+                        wakeup_android();
+                    }
+                }
+
+                current_time = SDL_GetTicks();
+                if(current_time > last_time + 1000)
+                {
+                    cout << "Frames: " << frames << endl;
+                    last_time = current_time;
+                    frames = 0;
                 }
             }
 
@@ -172,8 +207,8 @@ int main(int argc, char *argv[])
                         break;
                     default:
                          break;
-                 }
-             }
+                }
+            }
         }
     }
 

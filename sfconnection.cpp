@@ -211,10 +211,10 @@ void sfconnection_t::thread_loop()
             int timedout = 0;
             if(wait_for_buffer(timedout) == 0)
             {
+                buffer_done = false;
+
                 if(!timedout)
                 {
-                    buffer_done = false;
-
                     // tell the renderer to draw the buffer
                     SDL_Event event;
                     SDL_memset(&event, 0, sizeof(event));
@@ -224,6 +224,8 @@ void sfconnection_t::thread_loop()
 
                     while(!buffer_done)
                     {
+                        usleep(2500);
+                        std::this_thread::yield();
                         if(!running) break;
                     }
 
@@ -244,6 +246,8 @@ void sfconnection_t::thread_loop()
 
                         while(!buffer_done)
                         {
+                            usleep(2500);
+                            std::this_thread::yield();
                             if(!running) break;
                         }
 
