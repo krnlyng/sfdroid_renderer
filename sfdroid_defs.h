@@ -17,6 +17,8 @@
 
 #define SLEEPTIME_NO_FOCUS_US 500000
 
+#define SWIPE_HACK_PIXEL_PERCENT 4
+
 #include <cstdint>
 
 struct buffer_info_t

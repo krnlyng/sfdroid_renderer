@@ -158,6 +158,9 @@ int renderer_t::render_buffer(native_handle_t *the_buffer, buffer_info_t &info)
 
     gralloc_module->unlock(gralloc_module, the_buffer);
 
+    if(last_screen) free(last_screen);
+    last_screen = nullptr;
+
 quit:
     if(registered)
     {

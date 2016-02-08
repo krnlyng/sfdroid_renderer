@@ -254,7 +254,13 @@ void sfconnection_t::thread_loop()
                         timeout_count = 0;
                     }
 
-                    if(have_focus) wakeup_android();
+                    if(have_focus)
+                    {
+#if DEBUG
+                        cout << "wakeing up android" << endl;
+#endif
+                        wakeup_android();
+                    }
                     timeout_count++;
                 }
             }

@@ -34,6 +34,8 @@ using namespace std;
 int main(int argc, char *argv[])
 {
     int err = 0;
+    int swipe_hack_dist_x = 0;
+    int swipe_hack_dist_y = 0;
 
     bool new_buffer = false;
 
@@ -60,6 +62,13 @@ int main(int argc, char *argv[])
         err = 1;
         goto quit;
     }
+
+    swipe_hack_dist_x = (SWIPE_HACK_PIXEL_PERCENT * renderer.get_width()) / 100;
+    swipe_hack_dist_y = (SWIPE_HACK_PIXEL_PERCENT * renderer.get_height()) / 100;
+
+#if DEBUG
+    cout << "swipe hack dist (x,y): (" << swipe_hack_dist_x << "," << swipe_hack_dist_y << ")" << endl;
+#endif
 
     our_sdl_event = SDL_RegisterEvents(1);
 
@@ -173,9 +182,7 @@ int main(int argc, char *argv[])
 
             if(have_focus)
             {
-#if DEBUG
-                int m = 0;
-#endif
+                int x, y;
                 switch(e.type)
                 {
                     case SDL_FINGERUP:
@@ -190,11 +197,6 @@ int main(int argc, char *argv[])
                     case SDL_FINGERMOTION:
 #if DEBUG
                         cout << "SDL_FINGERMOTION" << endl;
-                        m = 1;
-#endif
-                    case SDL_FINGERDOWN:
-#if DEBUG
-                        if(!m) cout << "SDL_FINGERDOWN" << endl;
 #endif
                         if(first_fingerId == -1) first_fingerId = e.tfinger.fingerId;
 
@@ -202,6 +204,49 @@ int main(int argc, char *argv[])
                         uinput.send_event(EV_ABS, ABS_MT_TRACKING_ID, e.tfinger.fingerId);
                         uinput.send_event(EV_ABS, ABS_MT_POSITION_X, e.tfinger.x);
                         uinput.send_event(EV_ABS, ABS_MT_POSITION_Y, e.tfinger.y);
+                        uinput.send_event(EV_ABS, ABS_MT_PRESSURE, e.tfinger.pressure * MAX_PRESSURE);
+                        uinput.send_event(EV_SYN, SYN_REPORT, e.tfinger.fingerId);
+                        break;
+                    case SDL_FINGERDOWN:
+#if DEBUG
+                        cout << "SDL_FINGERDOWN" << endl;
+#endif
+                        if(first_fingerId == -1) first_fingerId = e.tfinger.fingerId;
+
+                        uinput.send_event(EV_ABS, ABS_MT_SLOT, (e.tfinger.fingerId == first_fingerId) ? 0 : e.tfinger.fingerId);
+                        uinput.send_event(EV_ABS, ABS_MT_TRACKING_ID, e.tfinger.fingerId);
+                        if(e.tfinger.x <= swipe_hack_dist_x)
+                        {
+#if DEBUG
+                            cout << "swipe hack x" << endl;
+#endif
+                            x = 0;
+                        }
+                        else x = e.tfinger.x;
+                        if(e.tfinger.x >= renderer.get_width() - swipe_hack_dist_x)
+                        {
+#if DEBUG
+                            cout << "swipe hack x" << endl;
+#endif
+                            x = renderer.get_width();
+                        }
+                        if(e.tfinger.y <= swipe_hack_dist_y)
+                        {
+#if DEBUG
+                            cout << "swipe hack y" << endl;
+#endif
+                            y = 0;
+                        }
+                        else y = e.tfinger.y;
+                        if(e.tfinger.y >= renderer.get_height() - swipe_hack_dist_y)
+                        {
+#if DEBUG
+                            cout << "swipe hack y" << endl;
+#endif
+                            y = renderer.get_height();
+                        }
+                        uinput.send_event(EV_ABS, ABS_MT_POSITION_X, x);
+                        uinput.send_event(EV_ABS, ABS_MT_POSITION_Y, y);
                         uinput.send_event(EV_ABS, ABS_MT_PRESSURE, e.tfinger.pressure * MAX_PRESSURE);
                         uinput.send_event(EV_SYN, SYN_REPORT, e.tfinger.fingerId);
                         break;
