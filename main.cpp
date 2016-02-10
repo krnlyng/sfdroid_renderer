@@ -99,7 +99,7 @@ int main(int argc, char *argv[])
             usleep(SLEEPTIME_NO_FOCUS_US);
         }
 
-        while(SDL_WaitEventTimeout(&e, 1000))
+        while(SDL_WaitEventTimeout(&e, 16))
         {
             if(e.type == SDL_QUIT)
             {
