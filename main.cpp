@@ -50,7 +50,6 @@ int main(int argc, char *argv[])
 
     unsigned int last_time = 0, current_time = 0;
     int frames = 0;
-    int timeout_count = 0;
 
 #if DEBUG
     cout << "setting up sfdroid directory" << endl;
@@ -124,29 +123,16 @@ int main(int argc, char *argv[])
 
                     new_buffer = true;
                     frames++;
-                    timeout_count = 0;
                 }
                 else if(e.user.code == NO_BUFFER)
                 {
-                    if((timeout_count * SHAREBUFFER_SOCKET_TIMEOUT_US) / 1000 >= DUMMY_RENDER_TIMEOUT_MS)
-                    {
-                        if(new_buffer) renderer.save_screen(sfconnection.get_current_info()->pixel_format);
-                        // dummy draw to avoid unresponive message
-                        renderer.dummy_draw();
-                        frames++;
+                    if(new_buffer) renderer.save_screen(sfconnection.get_current_info()->pixel_format);
+                    // dummy draw to avoid unresponive message
+                    int failed = renderer.dummy_draw();
+                    sfconnection.release_buffer(failed);
+                    frames++;
 
-                        new_buffer = false;
-                        timeout_count = 0;
-                    }
-                    else timeout_count++;
-
-                    if(have_focus)
-                    {
-#if DEBUG
-                        cout << "wakeing up android" << endl;
-#endif
-                        wakeup_android();
-                    }
+                    new_buffer = false;
                 }
 
                 current_time = SDL_GetTicks();

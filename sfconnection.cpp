@@ -253,6 +253,7 @@ void sfconnection_t::thread_loop()
 
                         timeout_count = 0;
                     }
+                    else timeout_count++;
 
                     if(have_focus)
                     {
@@ -261,7 +262,6 @@ void sfconnection_t::thread_loop()
 #endif
                         wakeup_android();
                     }
-                    timeout_count++;
                 }
             }
         }
