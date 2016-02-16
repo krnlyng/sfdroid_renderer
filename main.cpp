@@ -19,6 +19,8 @@
  */
 
 #include <iostream>
+#include <vector>
+#include <algorithm>
 
 #include <SDL.h>
 
@@ -30,6 +32,59 @@
 #include "uinput.h"
 
 using namespace std;
+
+int find_slot(vector<int> &slot_to_fingerId, int fingerId)
+{
+    // find the slot
+    vector<int>::iterator it = find(slot_to_fingerId.begin(), slot_to_fingerId.end(), fingerId);
+    if(it != slot_to_fingerId.end())
+    {
+        return std::distance(slot_to_fingerId.begin(), it);
+    }
+
+    // find first free slot
+    vector<int>::size_type i;
+    for(i = 0;i < slot_to_fingerId.size();i++)
+    {
+        if(slot_to_fingerId[i] == -1)
+        {
+            slot_to_fingerId[i] = fingerId;
+            return i;
+        }
+    }
+
+    // no free slot found, add new one
+    slot_to_fingerId.resize(slot_to_fingerId.size()+1);
+    slot_to_fingerId[slot_to_fingerId.size()-1] = fingerId;
+
+    return slot_to_fingerId.size()-1;
+}
+
+void erase_slot(vector<int> &slot_to_fingerId, int fingerId)
+{
+    vector<int>::iterator it = find(slot_to_fingerId.begin(), slot_to_fingerId.end(), fingerId);
+
+    if(it != slot_to_fingerId.end())
+    {
+        vector<int>::size_type idx = distance(slot_to_fingerId.begin(), it);
+
+        slot_to_fingerId[idx] = -1;
+
+        // if we're at the end of the vector, erase unneeded elements
+        if(idx == slot_to_fingerId.size()-1)
+        {
+            while(slot_to_fingerId[idx] == -1)
+            {
+                slot_to_fingerId.resize(idx);
+                idx--;
+            }
+        }
+    }
+    else
+    {
+        cerr << "BUG: erase_slot" << endl;
+    }
+}
 
 int main(int argc, char *argv[])
 {
@@ -44,7 +99,7 @@ int main(int argc, char *argv[])
     sfconnection_t sfconnection;
     renderer_t renderer;
     uinput_t uinput;
-    int first_fingerId = -1; // needed because first slot must be 0
+    vector<int> slot_to_fingerId;
 
     uint32_t our_sdl_event = 0;
 
@@ -169,37 +224,41 @@ int main(int argc, char *argv[])
             if(have_focus)
             {
                 int x, y;
+                int slot;
                 switch(e.type)
                 {
                     case SDL_FINGERUP:
 #if DEBUG
                         cout << "SDL_FINGERUP" << endl;
 #endif
-                        uinput.send_event(EV_ABS, ABS_MT_SLOT, (e.tfinger.fingerId == first_fingerId) ? 0 : e.tfinger.fingerId);
+                        slot = find_slot(slot_to_fingerId, e.tfinger.fingerId);
+
+                        uinput.send_event(EV_ABS, ABS_MT_SLOT, slot);
                         uinput.send_event(EV_ABS, ABS_MT_TRACKING_ID, -1);
                         uinput.send_event(EV_SYN, SYN_REPORT, 0);
-                        if(e.tfinger.fingerId == first_fingerId) first_fingerId = -1;
+
+                        erase_slot(slot_to_fingerId, e.tfinger.fingerId);
                         break;
                     case SDL_FINGERMOTION:
 #if DEBUG
                         cout << "SDL_FINGERMOTION" << endl;
 #endif
-                        if(first_fingerId == -1) first_fingerId = e.tfinger.fingerId;
+                        slot = find_slot(slot_to_fingerId, e.tfinger.fingerId);
 
-                        uinput.send_event(EV_ABS, ABS_MT_SLOT, (e.tfinger.fingerId == first_fingerId) ? 0 : e.tfinger.fingerId);
+                        uinput.send_event(EV_ABS, ABS_MT_SLOT, slot);
                         uinput.send_event(EV_ABS, ABS_MT_TRACKING_ID, e.tfinger.fingerId);
                         uinput.send_event(EV_ABS, ABS_MT_POSITION_X, e.tfinger.x);
                         uinput.send_event(EV_ABS, ABS_MT_POSITION_Y, e.tfinger.y);
                         uinput.send_event(EV_ABS, ABS_MT_PRESSURE, e.tfinger.pressure * MAX_PRESSURE);
-                        uinput.send_event(EV_SYN, SYN_REPORT, e.tfinger.fingerId);
+                        uinput.send_event(EV_SYN, SYN_REPORT, 0);
                         break;
                     case SDL_FINGERDOWN:
 #if DEBUG
                         cout << "SDL_FINGERDOWN" << endl;
 #endif
-                        if(first_fingerId == -1) first_fingerId = e.tfinger.fingerId;
+                        slot = find_slot(slot_to_fingerId, e.tfinger.fingerId);
 
-                        uinput.send_event(EV_ABS, ABS_MT_SLOT, (e.tfinger.fingerId == first_fingerId) ? 0 : e.tfinger.fingerId);
+                        uinput.send_event(EV_ABS, ABS_MT_SLOT, slot);
                         uinput.send_event(EV_ABS, ABS_MT_TRACKING_ID, e.tfinger.fingerId);
                         if(e.tfinger.x <= swipe_hack_dist_x)
                         {
@@ -234,7 +293,7 @@ int main(int argc, char *argv[])
                         uinput.send_event(EV_ABS, ABS_MT_POSITION_X, x);
                         uinput.send_event(EV_ABS, ABS_MT_POSITION_Y, y);
                         uinput.send_event(EV_ABS, ABS_MT_PRESSURE, e.tfinger.pressure * MAX_PRESSURE);
-                        uinput.send_event(EV_SYN, SYN_REPORT, e.tfinger.fingerId);
+                        uinput.send_event(EV_SYN, SYN_REPORT, 0);
                         break;
                     default:
                          break;
