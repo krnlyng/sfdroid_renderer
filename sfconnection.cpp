@@ -236,8 +236,8 @@ void sfconnection_t::thread_loop()
                 }
                 else
                 {
-                    if((timeout_count * SHAREBUFFER_SOCKET_TIMEOUT_US) / 1000 >= DUMMY_RENDER_TIMEOUT_MS)
-                    {                        
+                    if(((timeout_count + 1) * SHAREBUFFER_SOCKET_TIMEOUT_US) / 1000 >= DUMMY_RENDER_TIMEOUT_MS)
+                    {
                         SDL_Event event;
                         SDL_memset(&event, 0, sizeof(event));
                         event.type = sdl_event;
