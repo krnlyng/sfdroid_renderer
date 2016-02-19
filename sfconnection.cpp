@@ -224,7 +224,7 @@ void sfconnection_t::thread_loop()
 
                     while(!buffer_done)
                     {
-                        usleep(2500);
+                        usleep(1666);
                         std::this_thread::yield();
                         if(!running) break;
                     }
@@ -246,7 +246,7 @@ void sfconnection_t::thread_loop()
 
                         while(!buffer_done)
                         {
-                            usleep(2500);
+                            usleep(1666);
                             std::this_thread::yield();
                             if(!running) break;
                         }

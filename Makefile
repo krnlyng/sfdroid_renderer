@@ -9,10 +9,10 @@ CXXFLAGS    := -Wall -Werror -std=c++11
 LDFLAGS     :=
 LDLIBS      :=
 
-CFLAGS		+= `pkg-config --cflags sdl2` `pkg-config --cflags glesv1_cm` -I/usr/include/android
-CXXFLAGS	+= `pkg-config --cflags sdl2` `pkg-config --cflags glesv1_cm` -I/usr/include/android
+CFLAGS		+= `pkg-config --cflags sdl2` `pkg-config --cflags glesv1_cm` `pkg-config --cflags egl` `pkg-config --cflags wayland-egl`  -I/usr/include/android
+CXXFLAGS	+= `pkg-config --cflags sdl2` `pkg-config --cflags glesv1_cm` `pkg-config --cflags egl` `pkg-config --cflags wayland-egl` -I/usr/include/android
 
-LDLIBS		+= `pkg-config --libs sdl2` `pkg-config --libs glesv1_cm` -lhardware
+LDLIBS		+= `pkg-config --libs sdl2` `pkg-config --libs glesv1_cm` `pkg-config --libs egl` `pkg-config --libs wayland-egl` -lhardware
 
 DEBUG       ?= 0
 VERBOSE     ?= 0
