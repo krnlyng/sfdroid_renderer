@@ -78,13 +78,14 @@ quit:
 int sfconnection_t::wait_for_buffer(int &timedout)
 {
     int err = 0;
-
+    int r;
     timedout = 0;
+    char buf[1];
 
 #if DEBUG
-    cout << "waiting for handle" << endl;
+    cout << "waiting for notification" << endl;
 #endif
-    int r = recv_native_handle(fd_client, &current_handle, &current_info);
+    r = recv(fd_client, buf, 1, 0);
     if(r < 0)
     {
         if(errno == ETIMEDOUT || errno == EAGAIN)
@@ -98,7 +99,53 @@ int sfconnection_t::wait_for_buffer(int &timedout)
         close(fd_client);
         fd_client = -1;
         err = 1;
+        remove_buffers();
+        goto quit;
     }
+
+    if(buf[0] != 0xFF)
+    {
+#if DEBUG
+        cout << "received post notification" << endl;
+#endif
+        unsigned int index = buf[0];
+        if(index < 0 || index > buffers.size())
+        {
+            cerr << "invalid index" << endl;
+            err = 1;
+            goto quit;
+        }
+
+        current_handle = buffers[index];
+        current_info = buffer_infos[index];
+
+        err = 0;
+        goto quit;
+    }
+
+#if DEBUG
+    cout << "waiting for handle" << endl;
+#endif
+    r = recv_native_handle(fd_client, &current_handle, &current_info);
+    if(r < 0)
+    {
+        if(errno == ETIMEDOUT || errno == EAGAIN)
+        {
+            timedout = 1;
+            err = 0;
+            goto quit;
+        }
+
+        cerr << "lost client" << endl;
+        close(fd_client);
+        fd_client = -1;
+        err = 1;
+        remove_buffers();
+        goto quit;
+    }
+
+    buffers.push_back(current_handle);
+    buffer_infos.push_back(current_info);
 
 #if DEBUG
     cout << "buffer info:" << endl;
@@ -108,14 +155,25 @@ int sfconnection_t::wait_for_buffer(int &timedout)
     return err;
 }
 
+void sfconnection_t::remove_buffers()
+{
+    for(std::vector<native_handle_t*>::size_type i = 0;i < buffers.size();i++)
+    {
+        native_handle_t *buffer = buffers[i];
+
+        for(int i=0;i<buffer->numFds;i++)
+        {
+            close(buffer->data[i]);
+        }
+        free((void*)buffer);
+    }
+
+    buffers.resize(0);
+    buffer_infos.resize(0);
+}
+
 void sfconnection_t::send_status_and_cleanup()
 {
-    for(int i=0;i<current_handle->numFds;i++)
-    {
-        close(current_handle->data[i]);
-    }
-    free((void*)current_handle);
-
     if(fd_client >= 0)
     {
 #if DEBUG
@@ -126,6 +184,7 @@ void sfconnection_t::send_status_and_cleanup()
             cerr << "lost client" << endl;
             close(fd_client);
             fd_client = -1;
+            remove_buffers();
         }
     }
 }
@@ -270,7 +329,7 @@ void sfconnection_t::thread_loop()
     }
 }
 
-void sfconnection_t::release_buffer(int failed)
+void sfconnection_t::notify_buffer_done(int failed)
 {
     current_status = failed;
     buffer_done = true;
@@ -305,6 +364,7 @@ void sfconnection_t::gained_focus()
 
 void sfconnection_t::deinit()
 {
+    remove_buffers();
     if(fd_pass_socket >= 0) close(fd_pass_socket);
     if(fd_client >= 0) close(fd_client);
     unlink(SHAREBUFFER_HANDLE_FILE);

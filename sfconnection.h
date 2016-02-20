@@ -3,6 +3,7 @@
 
 #include <thread>
 #include <atomic>
+#include <vector>
 
 #include <hardware/hardware.h>
 #include <hardware/gralloc.h>
@@ -22,7 +23,9 @@ class sfconnection_t {
         void stop_thread();
         void update_timeout();
         bool have_client();
-        void release_buffer(int failed);
+        void notify_buffer_done(int failed);
+
+        void remove_buffers();
 
         void lost_focus();
         void gained_focus();
@@ -45,6 +48,9 @@ class sfconnection_t {
 
         uint32_t sdl_event;
         bool have_focus;
+
+        std::vector<native_handle_t*> buffers;
+        std::vector<buffer_info_t> buffer_infos;
 };
 
 #endif
