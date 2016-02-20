@@ -174,7 +174,7 @@ int main(int argc, char *argv[])
                     info = sfconnection.get_current_info();
 
                     int failed = renderer.render_buffer(handle, *info);
-                    sfconnection.release_buffer(failed);
+                    sfconnection.notify_buffer_done(failed);
 
                     new_buffer = true;
                     frames++;
@@ -184,7 +184,7 @@ int main(int argc, char *argv[])
                     if(new_buffer) renderer.save_screen(sfconnection.get_current_info()->pixel_format);
                     // dummy draw to avoid unresponive message
                     int failed = renderer.dummy_draw();
-                    sfconnection.release_buffer(failed);
+                    sfconnection.notify_buffer_done(failed);
                     frames++;
 
                     new_buffer = false;

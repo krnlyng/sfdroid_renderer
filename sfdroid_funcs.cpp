@@ -108,6 +108,6 @@ int send_status(int fd, int failed)
     if(failed) memcpy(message_buffer, "FA", sizeof(message_buffer));
     else memcpy(message_buffer, "OK", sizeof(message_buffer));
 
-    return send(fd, message_buffer, sizeof(message_buffer), MSG_WAITALL | MSG_NOSIGNAL);
+    return send(fd, message_buffer, sizeof(message_buffer), MSG_NOSIGNAL);
 }
 
