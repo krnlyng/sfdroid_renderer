@@ -92,8 +92,6 @@ int main(int argc, char *argv[])
     int swipe_hack_dist_x = 0;
     int swipe_hack_dist_y = 0;
 
-    bool new_buffer = false;
-
     int have_focus = 1;
 
     sfconnection_t sfconnection;
@@ -176,18 +174,26 @@ int main(int argc, char *argv[])
                     int failed = renderer.render_buffer(buffer, *info);
                     sfconnection.notify_buffer_done(failed);
 
-                    new_buffer = true;
                     frames++;
                 }
                 else if(e.user.code == NO_BUFFER)
                 {
-                    if(new_buffer) renderer.save_screen(sfconnection.get_current_info()->pixel_format);
-                    // dummy draw to avoid unresponive message
-                    int failed = renderer.dummy_draw();
-                    sfconnection.notify_buffer_done(failed);
-                    frames++;
+                    ANativeWindowBuffer *buffer;
+                    buffer_info_t *info;
 
-                    new_buffer = false;
+                    buffer = sfconnection.get_current_buffer();
+                    info = sfconnection.get_current_info();
+
+                    // dummy draw to avoid unresponive message
+                    // should be fine as long as surfaceflinger has at least 2 buffers
+                    // because if no buffer is sent surfaceflinger should only be modifiying
+                    // the other buffers and not the one that was just sent.
+                    // we cannot save the screen anymore with the new rendering method therefore
+                    // this method.
+                    int failed = renderer.render_buffer(buffer, *info);
+                    sfconnection.notify_buffer_done(failed);
+
+                    frames++;
                 }
 
                 current_time = SDL_GetTicks();

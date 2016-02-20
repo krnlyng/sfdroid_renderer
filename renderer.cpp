@@ -223,8 +223,6 @@ void renderer_t::deinit()
     wl_egl_window_destroy(w_egl_window);
     eglDestroyContext(egl_dpy, egl_ctx);
     eglTerminate(egl_dpy);
-    if(last_screen) free(last_screen);
-    last_screen = nullptr;
     if(window) SDL_DestroyWindow(window);
     SDL_Quit();
 }
@@ -237,108 +235,7 @@ int renderer_t::render_buffer(ANativeWindowBuffer *buffer, buffer_info_t &info)
         return 1;
     }
 
-    if(last_screen) free(last_screen);
-    last_screen = nullptr;
-
     return 0;
-}
-
-int renderer_t::draw_raw(void *data, int width, int height, int pixel_format)
-{
-    int err = 0;
-    GLuint gl_err = 0;
-
-    float xf = (float)win_width / (float)width;
-    float yf = 1.f;
-    float texcoords[] = {
-        0.f, 0.f,
-        xf, 0.f,
-        0.f, yf,
-        xf, yf,
-    };
-
-    float vtxcoords[] = {
-        0.f, 0.f,
-        (float)win_width, 0.f,
-        0.f, (float)win_height,
-        (float)win_width, (float)win_height,
-    };
-
-    glVertexPointer(2, GL_FLOAT, 0, &vtxcoords);
-    glTexCoordPointer(2, GL_FLOAT, 0, &texcoords);
-
-    glBindTexture(GL_TEXTURE_2D, dummy_tex);
-
-    if(pixel_format == HAL_PIXEL_FORMAT_RGBA_8888 || pixel_format == HAL_PIXEL_FORMAT_RGBX_8888)
-    {
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0,
-                GL_RGBA, GL_UNSIGNED_BYTE, data);
-    }
-    else if(pixel_format == HAL_PIXEL_FORMAT_RGB_565)
-    {
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0,
-                GL_RGB, GL_UNSIGNED_SHORT_5_6_5, data);
-    }
-    else
-    {
-        cerr << "unhandled pixel format: " << pixel_format << endl;
-        err = 3;
-        goto quit;
-    }
-    gl_err = glGetError();
-    if(gl_err != GL_NO_ERROR) cout << "glGetError(): " << gl_err << endl;
-
-    glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
-    eglSwapBuffers(egl_dpy, egl_surf);
-
-quit:
-    return err;
-}
-
-int renderer_t::save_screen(int pixel_format)
-{
-    int err = 0;
-
-    if(last_screen) free(last_screen);
-    last_screen = nullptr;
-
-    if(pixel_format == HAL_PIXEL_FORMAT_RGBA_8888 || pixel_format == HAL_PIXEL_FORMAT_RGBX_8888)
-    {
-        last_screen = (GLubyte*)malloc(4 * win_width * win_height);
-        glReadPixels(0, 0, win_width, win_height, GL_RGBA, GL_UNSIGNED_BYTE, last_screen);
-    }
-    else if(pixel_format == HAL_PIXEL_FORMAT_RGB_565)
-    {
-        last_screen = (GLubyte*)malloc(4 * win_width * win_height);
-        glReadPixels(0, 0, win_width, win_height, GL_RGB, GL_UNSIGNED_SHORT_5_6_5, last_screen);
-    }
-    else
-    {
-        cerr << "unhandled pixel format: " << pixel_format << endl;
-        err = 1;
-        goto quit;
-    }
-
-    last_pixel_format = pixel_format;
-
-quit:
-    return err;
-}
-
-int renderer_t::dummy_draw()
-{
-#if DEBUG
-    cout << "dummy draw" << endl;
-#endif
-    glMatrixMode(GL_PROJECTION);
-    glLoadIdentity();
-    glOrthof(0, win_width, 0, win_height, 0, 1);
-    if(last_screen != nullptr)
-    {
-        return draw_raw(last_screen, win_width, win_height, last_pixel_format);
-    }
-
-    return -1;
 }
 
 int renderer_t::get_height()
