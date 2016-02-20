@@ -162,6 +162,8 @@ int renderer_t::render_buffer(native_handle_t *the_buffer, buffer_info_t &info)
     last_screen = nullptr;
 
 quit:
+    if(buffer) delete buffer;
+    buffer = nullptr;
     if(registered)
     {
         gralloc_module->unregisterBuffer(gralloc_module, the_buffer);
