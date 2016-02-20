@@ -67,6 +67,16 @@ int sfconnection_t::init(uint32_t the_sdl_event)
         goto quit;
     }
 
+#if DEBUG
+    cout << "loading gralloc module" << endl;
+#endif
+    if(hw_get_module(GRALLOC_HARDWARE_MODULE_ID, (const hw_module_t**)&gralloc_module) != 0)
+    {
+        cerr << "failed to open " << GRALLOC_HARDWARE_MODULE_ID << " module" << endl;
+        err = 4;
+        goto quit;
+    }
+
     chmod(SHAREBUFFER_HANDLE_FILE, 0770);
 
     sdl_event = the_sdl_event;
@@ -75,12 +85,20 @@ quit:
     return err;
 }
 
+void dummy_f(android_native_base_t *base)
+{
+}
+
 int sfconnection_t::wait_for_buffer(int &timedout)
 {
     int err = 0;
     int r;
-    timedout = 0;
+    int gerr;
     char buf[1];
+    ANativeWindowBuffer *buffer = nullptr;
+    native_handle_t *handle = nullptr;
+    int registered = 0;
+    timedout = 0;
 
 #if DEBUG
     cout << "waiting for notification" << endl;
@@ -96,10 +114,7 @@ int sfconnection_t::wait_for_buffer(int &timedout)
         }
 
         cerr << "lost client" << endl;
-        close(fd_client);
-        fd_client = -1;
         err = 1;
-        remove_buffers();
         goto quit;
     }
 
@@ -111,22 +126,24 @@ int sfconnection_t::wait_for_buffer(int &timedout)
         unsigned int index = buf[0];
         if(index < 0 || index > buffers.size())
         {
-            cerr << "invalid index" << endl;
+            cerr << "invalid index: " << index << endl;
             err = 1;
             goto quit;
         }
 
-        current_handle = buffers[index];
+        current_buffer = buffers[index];
         current_info = buffer_infos[index];
 
         err = 0;
         goto quit;
     }
 
+    buffer = new ANativeWindowBuffer();
+
 #if DEBUG
     cout << "waiting for handle" << endl;
 #endif
-    r = recv_native_handle(fd_client, &current_handle, &current_info);
+    r = recv_native_handle(fd_client, &handle, &current_info);
     if(r < 0)
     {
         if(errno == ETIMEDOUT || errno == EAGAIN)
@@ -137,14 +154,29 @@ int sfconnection_t::wait_for_buffer(int &timedout)
         }
 
         cerr << "lost client" << endl;
-        close(fd_client);
-        fd_client = -1;
         err = 1;
-        remove_buffers();
+        goto quit;
+    }
+ 
+    gerr = gralloc_module->registerBuffer(gralloc_module, handle);
+    if(gerr)
+    {
+        cerr << "registerBuffer failed: " << strerror(-gerr) << endl;
+        err = 1;
         goto quit;
     }
 
-    buffers.push_back(current_handle);
+    buffer->width = current_info.width;
+    buffer->height = current_info.height;
+    buffer->stride = current_info.stride;
+    buffer->format = current_info.pixel_format;
+    buffer->handle = handle;
+    buffer->common.incRef = dummy_f;
+    buffer->common.decRef = dummy_f;
+
+    current_buffer = buffer;
+
+    buffers.push_back(current_buffer);
     buffer_infos.push_back(current_info);
 
 #if DEBUG
@@ -152,20 +184,40 @@ int sfconnection_t::wait_for_buffer(int &timedout)
     cout << "width: " << current_info.width << " height: " << current_info.height << " stride: " << current_info.stride << " pixel_format: " << current_info.pixel_format << endl;
 #endif
     quit:
+    if(err != 0)
+    {
+        if(registered)
+        {
+            gralloc_module->unregisterBuffer(gralloc_module, handle);
+        }
+        close(fd_client);
+        fd_client = -1;
+        remove_buffers();
+        if(buffer) delete buffer;
+        if(handle)
+        {
+            free_handle(handle);
+        }
+    }
     return err;
 }
 
 void sfconnection_t::remove_buffers()
 {
-    for(std::vector<native_handle_t*>::size_type i = 0;i < buffers.size();i++)
+    for(std::vector<ANativeWindowBuffer*>::size_type i = 0;i < buffers.size();i++)
     {
-        native_handle_t *buffer = buffers[i];
+        ANativeWindowBuffer *buffer = buffers[i];
+        const native_handle_t *handle = buffer->handle;
 
-        for(int i=0;i<buffer->numFds;i++)
+        gralloc_module->unregisterBuffer(gralloc_module, handle);
+
+        for(int i=0;i<handle->numFds;i++)
         {
-            close(buffer->data[i]);
+            close(handle->data[i]);
         }
-        free((void*)buffer);
+        free((void*)handle);
+
+        delete buffer;
     }
 
     buffers.resize(0);
@@ -194,9 +246,9 @@ buffer_info_t *sfconnection_t::get_current_info()
     return &current_info;
 }
 
-native_handle_t *sfconnection_t::get_current_handle()
+ANativeWindowBuffer *sfconnection_t::get_current_buffer()
 {
-    return current_handle;
+    return current_buffer;
 }
 
 int sfconnection_t::wait_for_client()

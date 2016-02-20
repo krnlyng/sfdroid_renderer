@@ -24,7 +24,6 @@
 
 #include <GLES/gl.h>
 
-#include <system/window.h>
 #include <SDL_syswm.h>
 #include <wayland-egl.h>
 
@@ -177,6 +176,17 @@ int renderer_t::init()
     }
 
 #if DEBUG
+    cout << "getting eglHybrisWaylandPostBuffer" << endl;
+#endif
+    pfn_eglHybrisWaylandPostBuffer = (int (*)(EGLNativeWindowType, void *))eglGetProcAddress("eglHybrisWaylandPostBuffer");
+    if(pfn_eglHybrisWaylandPostBuffer == NULL)
+    {
+        cerr << "eglHybrisWaylandPostBuffer not found" << endl;
+        err = 15;
+        goto quit;
+    }
+
+#if DEBUG
     cout << "setting up gl" << endl;
 #endif
     glViewport(0, 0, win_width, win_height);
@@ -194,13 +204,6 @@ int renderer_t::init()
     glEnableClientState(GL_VERTEX_ARRAY);
     glEnableClientState(GL_TEXTURE_COORD_ARRAY);
 
-    glGenTextures(1, &tex);
-    glBindTexture(GL_TEXTURE_2D, tex);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-
     glGenTextures(1, &dummy_tex);
     glBindTexture(GL_TEXTURE_2D, dummy_tex);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
@@ -208,23 +211,12 @@ int renderer_t::init()
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 
-#if DEBUG
-    cout << "loading gralloc module" << endl;
-#endif
-    if(hw_get_module(GRALLOC_HARDWARE_MODULE_ID, (const hw_module_t**)&gralloc_module) != 0)
-    {
-        cerr << "failed to open " << GRALLOC_HARDWARE_MODULE_ID << " module" << endl;
-        err = 4;
-        goto quit;
-    }
-
 quit:
     return err;
 }
 
 void renderer_t::deinit()
 {
-    glDeleteTextures(1, &tex);
     glDeleteTextures(1, &dummy_tex);
     eglMakeCurrent(egl_dpy, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
     eglDestroySurface(egl_dpy, egl_surf);
@@ -237,100 +229,18 @@ void renderer_t::deinit()
     SDL_Quit();
 }
 
-void dummy_f(android_native_base_t *base)
+int renderer_t::render_buffer(ANativeWindowBuffer *buffer, buffer_info_t &info)
 {
-}
-
-int renderer_t::render_buffer(native_handle_t *the_buffer, buffer_info_t &info)
-{
-    EGLImageKHR egl_img;
-    int err = 0;
-    int gerr = 0;
-    int registered = 0;
-
-    float xf = 1.f;
-    float yf = 1.f;
-    float texcoords[] = {
-        0.f, 0.f,
-        xf, 0.f,
-        0.f, yf,
-        xf, yf,
-    };
-
-    float vtxcoords[] = {
-        0.f, 0.f,
-        (float)win_width, 0.f,
-        0.f, (float)win_height,
-        (float)win_width, (float)win_height,
-    };
-
-    glBindTexture(GL_TEXTURE_2D, tex);
-
-    glVertexPointer(2, GL_FLOAT, 0, &vtxcoords);
-    glTexCoordPointer(2, GL_FLOAT, 0, &texcoords);
- 
-    gerr = gralloc_module->registerBuffer(gralloc_module, the_buffer);
-    if(gerr)
+    pfn_eglHybrisWaylandPostBuffer((EGLNativeWindowType)w_egl_window, buffer);
+    if(eglGetError() != EGL_SUCCESS)
     {
-        cerr << "registerBuffer failed: " << strerror(-gerr) << endl;
-        err = 1;
-        goto quit;
+        return 1;
     }
-    registered = 1;
-
-    buffer = new ANativeWindowBuffer();
-    buffer->width = info.width;
-    buffer->height = info.height;
-    buffer->stride = info.stride;
-    buffer->format = info.pixel_format;
-    buffer->handle = the_buffer;
-    buffer->common.incRef = dummy_f;
-    buffer->common.decRef = dummy_f;
-
-    glMatrixMode(GL_PROJECTION);
-    glLoadIdentity();
-    glOrthof(0, win_width, win_height, 0, 0, 1);
-
-#if DEBUG
-    cout << "creating egl image from buffer" << endl;
-#endif
-    egl_img = pfn_eglCreateImageKHR(egl_dpy, egl_ctx, EGL_NATIVE_BUFFER_ANDROID, buffer, NULL);
-    if(egl_img == EGL_NO_IMAGE_KHR)
-    {
-        cerr << "failed to create egl image " << hex << eglGetError() << endl;
-        err = 3;
-        goto quit;
-    }
-
-#if DEBUG
-    cout << "binding image to texture" << endl;
-#endif
-    pfn_glEGLImageTargetTexture2DOES(GL_TEXTURE_2D, egl_img);
-
-#if DEBUG
-    cout << "drawing texture" << endl;
-#endif
-    glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
-    eglSwapBuffers(egl_dpy, egl_surf);
-
-    pfn_eglDestroyImageKHR(egl_dpy, egl_img);
-
-    delete buffer;
-    buffer = nullptr;
 
     if(last_screen) free(last_screen);
     last_screen = nullptr;
 
-quit:
-    if(buffer) delete buffer;
-    buffer = nullptr;
-    if(registered)
-    {
-        gralloc_module->unregisterBuffer(gralloc_module, the_buffer);
-        registered = 0;
-    }
-
-    return err;
+    return 0;
 }
 
 int renderer_t::draw_raw(void *data, int width, int height, int pixel_format)

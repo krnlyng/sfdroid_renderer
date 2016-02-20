@@ -111,3 +111,12 @@ int send_status(int fd, int failed)
     return send(fd, message_buffer, sizeof(message_buffer), MSG_NOSIGNAL);
 }
 
+void free_handle(native_handle_t *handle)
+{
+    for(int i=0;i<handle->numFds;i++)
+    {
+        close(handle->data[i]);
+    }
+    free((void*)handle);
+}
+
