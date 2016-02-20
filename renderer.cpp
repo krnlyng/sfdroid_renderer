@@ -316,11 +316,14 @@ int renderer_t::render_buffer(native_handle_t *the_buffer, buffer_info_t &info)
     pfn_eglDestroyImageKHR(egl_dpy, egl_img);
 
     delete buffer;
+    buffer = nullptr;
 
     if(last_screen) free(last_screen);
     last_screen = nullptr;
 
 quit:
+    if(buffer) delete buffer;
+    buffer = nullptr;
     if(registered)
     {
         gralloc_module->unregisterBuffer(gralloc_module, the_buffer);
