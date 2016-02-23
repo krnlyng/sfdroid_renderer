@@ -23,6 +23,7 @@
 #include <iostream>
 
 #include <SDL.h>
+#include <QCoreApplication>
 
 #include <sys/socket.h>
 #include <sys/un.h>
@@ -115,6 +116,9 @@ void sensorconnection_t::update_timeout()
 
 void sensorconnection_t::thread_loop()
 {
+    int argc;
+    char *argv[0];
+    QCoreApplication app(argc, argv);
     int err = 0;
 
     remoteSensorManager = &SensorManagerInterface::instance();
@@ -169,8 +173,14 @@ void sensorconnection_t::thread_loop()
 
         std::this_thread::yield();
     }
+
+    if(accel) accel->stop();
+
+    close(fd_client);
+    fd_client = -1;
+
 quit:
-    if(err != 0) cerr << "not stating the sensors thread" << endl;
+    if(err != 0) cerr << "not starting the sensors thread" << endl;
     return;
 }
 
@@ -180,6 +190,8 @@ int sensorconnection_t::wait_for_request(int &type, int &timedout)
     int64_t delay;
     int enable;
     char syncbuf[1];
+
+    timedout = 0;
 
 #if DEBUG
     cout << "waiting for sensor request" << endl;
@@ -221,6 +233,9 @@ int sensorconnection_t::wait_for_request(int &type, int &timedout)
 
     if(strcmp(buffer, "get:accelerometer") == 0)
     {
+#if DEBUG
+        cout << "received the get:accelerometer command" << endl;
+#endif
         type = ACCELEROMETER;
     }
     else if(sscanf(buffer, "setDelay:acceleration:%lld", &delay) == 1)
@@ -228,7 +243,7 @@ int sensorconnection_t::wait_for_request(int &type, int &timedout)
 #if DEBUG
         cout << "setting accelerometer interval " << delay << endl;
 #endif
-        accel->setInterval(delay);
+        accel->setInterval(delay / 1000000);
     }
     else if(sscanf(buffer, "set:acceleration:%d", &enable) == 1)
     {
@@ -310,7 +325,6 @@ bool sensorconnection_t::have_client()
 
 void sensorconnection_t::deinit()
 {
-    if(accel) accel->stop();
     if(fd_pass_socket >= 0) close(fd_pass_socket);
     if(fd_client >= 0) close(fd_client);
     unlink(SENSORS_HANDLE_FILE);
