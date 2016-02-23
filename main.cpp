@@ -28,6 +28,7 @@
 
 #include "renderer.h"
 #include "sfconnection.h"
+#include "sensorconnection.h"
 #include "utility.h"
 #include "uinput.h"
 
@@ -95,6 +96,7 @@ int main(int argc, char *argv[])
     int have_focus = 1;
 
     sfconnection_t sfconnection;
+    sensorconnection_t sensorconnection;
     renderer_t renderer;
     uinput_t uinput;
     vector<int> slot_to_fingerId;
@@ -130,6 +132,12 @@ int main(int argc, char *argv[])
         goto quit;
     }
 
+    if(sensorconnection.init() != 0)
+    {
+        err = 6;
+        goto quit;
+    }
+
 #if DEBUG
     cout << "setting up uinput" << endl;
 #endif
@@ -140,6 +148,7 @@ int main(int argc, char *argv[])
     }
 
     sfconnection.start_thread();
+    sensorconnection.start_thread();
 
     SDL_Event e;
     for(;;)
@@ -215,6 +224,7 @@ int main(int argc, char *argv[])
 #endif
                         have_focus = 0;
                         sfconnection.lost_focus();
+                        sensorconnection.lost_focus();
                         break;
                     case SDL_WINDOWEVENT_FOCUS_GAINED:
 #if DEBUG
@@ -222,6 +232,7 @@ int main(int argc, char *argv[])
 #endif
                         wakeup_android();
                         sfconnection.gained_focus();
+                        sensorconnection.gained_focus();
                         have_focus = 1;
                         break;
                 }
@@ -311,6 +322,8 @@ int main(int argc, char *argv[])
 quit:
     uinput.deinit();
     renderer.deinit();
+    sensorconnection.stop_thread();
+    sensorconnection.deinit();
     sfconnection.stop_thread();
     sfconnection.deinit();
     rmdir(SFDROID_ROOT);

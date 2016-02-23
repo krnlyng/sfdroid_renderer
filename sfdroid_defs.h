@@ -3,21 +3,27 @@
 
 #define SFDROID_ROOT "/tmp/sfdroid"
 #define SHAREBUFFER_HANDLE_FILE (SFDROID_ROOT "/gralloc_buffer_handle")
+#define SENSORS_HANDLE_FILE (SFDROID_ROOT "/sensors_handle")
 
 // hmmm
 #define MAX_NUM_FDS 32
 #define MAX_NUM_INTS 32
 
 #define DUMMY_RENDER_TIMEOUT_MS 250
+
 #define NO_BUFFER 0
 #define BUFFER 1
+
 #define SHAREBUFFER_SOCKET_TIMEOUT_US 250000
-// something very big...
 #define SHAREBUFFER_SOCKET_FOCUS_LOST_TIMEOUT_S 60*60*24
+#define SENSOR_SOCKET_TIMEOUT_US 250000
+#define SENSOR_SOCKET_FOCUS_LOST_TIMEOUT_S 60*60*24
 
 #define SLEEPTIME_NO_FOCUS_US 500000
 
 #define SWIPE_HACK_PIXEL_PERCENT 4
+
+#define ACCELEROMETER 0
 
 #include <cstdint>
 

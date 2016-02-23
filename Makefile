@@ -1,5 +1,5 @@
 OUT         := sfdroid
-SRC         := main.cpp uinput.cpp renderer.cpp sfdroid_funcs.cpp sfconnection.cpp utility.cpp
+SRC         := main.cpp uinput.cpp renderer.cpp sfdroid_funcs.cpp sfconnection.cpp utility.cpp sensorconnection.cpp
 OBJ         := $(patsubst %.c, %.o, $(filter %.c, $(SRC)))
 OBJ         += $(patsubst %.cpp, %.o, $(filter %.cpp, $(SRC)))
 DEP         := $(OBJ:.o=.d)
@@ -9,10 +9,26 @@ CXXFLAGS    := -Wall -Werror -std=c++11
 LDFLAGS     :=
 LDLIBS      :=
 
-CFLAGS		+= `pkg-config --cflags sdl2` `pkg-config --cflags glesv1_cm` `pkg-config --cflags egl` `pkg-config --cflags wayland-egl` -I/usr/include/android
-CXXFLAGS	+= `pkg-config --cflags sdl2` `pkg-config --cflags glesv1_cm` `pkg-config --cflags egl` `pkg-config --cflags wayland-egl` -I/usr/include/android
+CFLAGS  += `pkg-config --cflags sdl2`
+CFLAGS  += `pkg-config --cflags glesv1_cm`
+CFLAGS  += `pkg-config --cflags egl`
+CFLAGS  += `pkg-config --cflags wayland-egl`
+CFLAGS  += -I/usr/include/android
+CFLAGS  += `pkg-config --cflags sensord-qt5` `pkg-config --cflags Qt5DBus` `pkg-config --cflags Qt5Network` -D_REENTRANT -fPIE -DQT_NO_DEBUG -DQT_DBUS_LIB -DQT_NETWORK_LIB -DQT_CORE_LIB 
 
-LDLIBS		+= `pkg-config --libs sdl2` `pkg-config --libs glesv1_cm` `pkg-config --libs egl` `pkg-config --libs wayland-egl` -lhardware
+CXXFLAGS    += `pkg-config --cflags sdl2`
+CXXFLAGS    += `pkg-config --cflags glesv1_cm`
+CXXFLAGS    += `pkg-config --cflags egl`
+CXXFLAGS    += `pkg-config --cflags wayland-egl`
+CXXFLAGS    += -I/usr/include/android
+CXXFLAGS    += `pkg-config --cflags sensord-qt5` `pkg-config --cflags Qt5DBus` `pkg-config --cflags Qt5Network` -D_REENTRANT -fPIE -DQT_NO_DEBUG -DQT_DBUS_LIB -DQT_NETWORK_LIB -DQT_CORE_LIB 
+
+LDLIBS  += `pkg-config --libs sdl2`
+LDLIBS  += `pkg-config --libs glesv1_cm`
+LDLIBS  += `pkg-config --libs egl`
+LDLIBS  += `pkg-config --libs wayland-egl`
+LDLIBS  += -lhardware
+LDLIBS  += `pkg-config --libs sensord-qt5` `pkg-config --libs Qt5DBus` `pkg-config --cflags Qt5Network`
 
 DEBUG       ?= 0
 VERBOSE     ?= 0
