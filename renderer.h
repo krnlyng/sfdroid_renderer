@@ -18,7 +18,7 @@
 
 class renderer_t {
     public:
-        renderer_t() : window(nullptr), glcontext(nullptr), egl_dpy(EGL_NO_DISPLAY), egl_surf(EGL_NO_SURFACE), egl_ctx(EGL_NO_CONTEXT), w_egl_window(nullptr), buffer(nullptr), pfn_eglCreateImageKHR(nullptr), pfn_glEGLImageTargetTexture2DOES(nullptr), pfn_eglDestroyImageKHR(nullptr), pfn_eglHybrisWaylandPostBuffer(nullptr) {}
+        renderer_t() : window(nullptr), glcontext(nullptr), egl_dpy(EGL_NO_DISPLAY), egl_surf(EGL_NO_SURFACE), egl_ctx(EGL_NO_CONTEXT), w_egl_window(nullptr), buffer(nullptr), pfn_eglHybrisWaylandPostBuffer(nullptr) {}
         int init();
         int render_buffer(ANativeWindowBuffer *the_buffer, buffer_info_t &info);
         int get_height();
@@ -37,9 +37,6 @@ class renderer_t {
         EGLContext egl_ctx;
         struct wl_egl_window *w_egl_window;
         ANativeWindowBuffer *buffer;
-        PFNEGLCREATEIMAGEKHRPROC pfn_eglCreateImageKHR;
-        PFNGLEGLIMAGETARGETTEXTURE2DOESPROC pfn_glEGLImageTargetTexture2DOES;
-        PFNEGLDESTROYIMAGEKHRPROC pfn_eglDestroyImageKHR;
         int (*pfn_eglHybrisWaylandPostBuffer)(EGLNativeWindowType win, void *buffer);
 };
 

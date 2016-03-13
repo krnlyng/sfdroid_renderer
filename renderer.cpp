@@ -143,39 +143,6 @@ int renderer_t::init()
     }
 
 #if DEBUG
-    cout << "getting eglCreateImageKHR" << endl;
-#endif
-    pfn_eglCreateImageKHR = (PFNEGLCREATEIMAGEKHRPROC)eglGetProcAddress("eglCreateImageKHR");
-    if(pfn_eglCreateImageKHR == NULL)
-    {
-        cerr << "eglCreateImageKHR not found" << endl;
-        err = 11;
-        goto quit;
-    }
-
-#if DEBUG
-    cout << "getting glEGLImageTargetTexture2DOES" << endl;
-#endif
-    pfn_glEGLImageTargetTexture2DOES = (PFNGLEGLIMAGETARGETTEXTURE2DOESPROC)eglGetProcAddress("glEGLImageTargetTexture2DOES");
-    if(pfn_glEGLImageTargetTexture2DOES == NULL)
-    {
-        cerr << "glEGLImageTargetTexture2DOES not found" << endl;
-        err = 12;
-        goto quit;
-    }
-
-#if DEBUG
-    cout << "getting eglDestroyImageKHR" << endl;
-#endif
-    pfn_eglDestroyImageKHR = (PFNEGLDESTROYIMAGEKHRPROC)eglGetProcAddress("eglDestroyImageKHR");
-    if(pfn_eglDestroyImageKHR == NULL)
-    {
-        cerr << "eglDestroyImageKHR not found" << endl;
-        err = 13;
-        goto quit;
-    }
-
-#if DEBUG
     cout << "getting eglHybrisWaylandPostBuffer" << endl;
 #endif
     pfn_eglHybrisWaylandPostBuffer = (int (*)(EGLNativeWindowType, void *))eglGetProcAddress("eglHybrisWaylandPostBuffer");
