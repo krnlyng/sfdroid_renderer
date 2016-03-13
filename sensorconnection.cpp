@@ -257,6 +257,8 @@ int sensorconnection_t::wait_for_request(int &type, int &timedout)
     {
         cerr << "unknown request: " << buffer << endl;
         type = -1;
+        err = 1;
+        goto quit;
     }
 
 quit:
