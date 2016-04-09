@@ -18,7 +18,7 @@
 
 class renderer_t {
     public:
-        renderer_t() : have_focus(0), window(nullptr), glcontext(nullptr), last_screen(nullptr), egl_surf(EGL_NO_SURFACE), egl_ctx(EGL_NO_CONTEXT), w_egl_window(nullptr), buffer(nullptr), last_pixel_format(0), focus_gained_time(0) { }
+        renderer_t() : have_focus(0), window(nullptr), glcontext(nullptr), last_screen(nullptr), egl_surf(EGL_NO_SURFACE), egl_ctx(EGL_NO_CONTEXT), w_egl_window(nullptr), buffer(nullptr), last_pixel_format(0), frames_since_focus_gained(0) { }
         int init();
         int render_buffer(ANativeWindowBuffer *the_buffer, buffer_info_t &info);
         int get_height();
@@ -52,7 +52,7 @@ class renderer_t {
 
         int last_pixel_format;
 
-        time_t focus_gained_time;
+        int frames_since_focus_gained;
 };
 
 #endif

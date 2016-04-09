@@ -334,7 +334,7 @@ void renderer_t::lost_focus()
 
 void renderer_t::gained_focus()
 {
-    focus_gained_time = time(0);
+    frames_since_focus_gained = 0;
     eglMakeCurrent(egl_dpy, egl_surf, egl_surf, egl_ctx);
     have_focus = true;
 }
@@ -346,8 +346,7 @@ bool renderer_t::is_active()
 
 int renderer_t::render_buffer(ANativeWindowBuffer *the_buffer, buffer_info_t &info)
 {
-    // only render after 2 seconds to avoid switching between app artifacts. not good but should work...
-    if(focus_gained_time < time(0) - 1)
+    if(frames_since_focus_gained > 30)
     {
         pfn_eglHybrisWaylandPostBuffer((EGLNativeWindowType)w_egl_window, the_buffer);
         buffer = the_buffer;
@@ -356,6 +355,7 @@ int renderer_t::render_buffer(ANativeWindowBuffer *the_buffer, buffer_info_t &in
             return 1;
         }
     }
+    else frames_since_focus_gained++;
 
     return 0;
 }
