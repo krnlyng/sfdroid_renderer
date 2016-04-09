@@ -43,16 +43,6 @@ int renderer_t::init()
     EGLint numConfigs;
 
 #if DEBUG
-    cout << "initializing SDL" << endl;
-#endif
-    if(SDL_Init(SDL_INIT_VIDEO) < 0)
-    {
-        cerr << "SDL_Init failed" << endl;
-        err = 1;
-        goto quit;
-    }
-
-#if DEBUG
     cout << "creating SDL window" << endl;
 #endif
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 1);

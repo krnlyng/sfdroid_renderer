@@ -111,6 +111,16 @@ int main(int argc, char *argv[])
 #endif
     mkdir(SFDROID_ROOT, 0770);
 
+#if DEBUG
+    cout << "initializing SDL" << endl;
+#endif
+    if(SDL_Init(SDL_INIT_VIDEO) < 0)
+    {
+        cerr << "SDL_Init failed" << endl;
+        err = 1;
+        goto quit;
+    }
+
     if(renderer.init() != 0)
     {
         err = 1;
