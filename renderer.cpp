@@ -344,9 +344,9 @@ bool renderer_t::is_active()
     return have_focus;
 }
 
-int renderer_t::render_buffer(ANativeWindowBuffer *the_buffer, buffer_info_t &info)
+int renderer_t::render_buffer(ANativeWindowBuffer *the_buffer, buffer_info_t &info, bool now)
 {
-    if(frames_since_focus_gained > 30)
+    if(frames_since_focus_gained > 30 || now)
     {
         pfn_eglHybrisWaylandPostBuffer((EGLNativeWindowType)w_egl_window, the_buffer);
         buffer = the_buffer;

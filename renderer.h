@@ -20,7 +20,7 @@ class renderer_t {
     public:
         renderer_t() : have_focus(0), window(nullptr), glcontext(nullptr), last_screen(nullptr), egl_surf(EGL_NO_SURFACE), egl_ctx(EGL_NO_CONTEXT), w_egl_window(nullptr), buffer(nullptr), last_pixel_format(0), frames_since_focus_gained(0) { }
         int init();
-        int render_buffer(ANativeWindowBuffer *the_buffer, buffer_info_t &info);
+        int render_buffer(ANativeWindowBuffer *the_buffer, buffer_info_t &info, bool now=false);
         int get_height();
         int get_width();
         void gained_focus();

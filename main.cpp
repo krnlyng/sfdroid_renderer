@@ -204,7 +204,7 @@ int main(int argc, char *argv[])
                         {
                             for(map<string, renderer_t*>::iterator it=windows.begin();it!=windows.end();it++)
                             {
-                                failed = it->second->render_buffer(buffer, *info);
+                                failed = it->second->render_buffer(buffer, *info, true);
                                 hack = 1;
                                 break;
                             }
