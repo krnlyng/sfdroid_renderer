@@ -31,6 +31,8 @@
 
 using namespace std;
 
+gralloc_module_t *gralloc_module(nullptr);
+
 int sfconnection_t::init(uint32_t the_sdl_event)
 {
     int err = 0;

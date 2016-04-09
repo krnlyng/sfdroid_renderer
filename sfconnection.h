@@ -11,9 +11,11 @@
 
 #include "sfdroid_defs.h"
 
+extern gralloc_module_t *gralloc_module;
+
 class sfconnection_t {
     public:
-        sfconnection_t() : current_status(0), fd_pass_socket(-1), fd_client(-1), running(false), buffer_done(false), current_buffer(nullptr), timeout_count(0), sdl_event(-1), have_focus(true), gralloc_module(nullptr) {}
+        sfconnection_t() : current_status(0), fd_pass_socket(-1), fd_client(-1), running(false), buffer_done(false), current_buffer(nullptr), timeout_count(0), sdl_event(-1), have_focus(true) {}
         int init(uint32_t the_sdl_event);
         void deinit();
         int wait_for_client();
@@ -49,8 +51,6 @@ class sfconnection_t {
 
         uint32_t sdl_event;
         bool have_focus;
-
-        gralloc_module_t *gralloc_module;
 
         std::vector<ANativeWindowBuffer*> buffers;
         std::vector<buffer_info_t> buffer_infos;

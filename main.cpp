@@ -98,6 +98,7 @@ int main(int argc, char *argv[])
     sfconnection_t sfconnection;
     sensorconnection_t sensorconnection;
     renderer_t renderer;
+    map<string, renderer_t*> windows;
     uinput_t uinput;
     vector<int> slot_to_fingerId;
 
@@ -126,6 +127,7 @@ int main(int argc, char *argv[])
         err = 1;
         goto quit;
     }
+    renderer.gained_focus();
 
     swipe_hack_dist_x = (SWIPE_HACK_PIXEL_PERCENT * renderer.get_width()) / 100;
     swipe_hack_dist_y = (SWIPE_HACK_PIXEL_PERCENT * renderer.get_height()) / 100;
@@ -190,7 +192,22 @@ int main(int argc, char *argv[])
                     buffer = sfconnection.get_current_buffer();
                     info = sfconnection.get_current_info();
 
-                    int failed = renderer.render_buffer(buffer, *info);
+                    int failed = 1;
+                    if(renderer.is_active())
+                    {
+                        failed = renderer.render_buffer(buffer, *info);
+                    }
+                    else
+                    {
+                        for(map<string, renderer_t*>::iterator it=windows.begin();it!=windows.end();it++)
+                        {
+                            if(it->second->is_active())
+                            {
+                                failed = it->second->render_buffer(buffer, *info);
+                                break;
+                            }
+                        }
+                    }
                     sfconnection.notify_buffer_done(failed);
 
                     frames++;
@@ -209,7 +226,22 @@ int main(int argc, char *argv[])
                     // the other buffers and not the one that was just sent.
                     // we cannot save the screen anymore with the new rendering method therefore
                     // this method.
-                    int failed = renderer.render_buffer(buffer, *info);
+                    int failed = 1;
+                    if(renderer.is_active())
+                    {
+                        failed = renderer.render_buffer(buffer, *info);
+                    }
+                    else
+                    {
+                        for(map<string, renderer_t*>::iterator it=windows.begin();it!=windows.end();it++)
+                        {
+                            if(it->second->is_active())
+                            {
+                                failed = it->second->render_buffer(buffer, *info);
+                                break;
+                            }
+                        }
+                    }
                     sfconnection.notify_buffer_done(failed);
 
                     frames++;
@@ -235,6 +267,22 @@ int main(int argc, char *argv[])
                         have_focus = 0;
                         sfconnection.lost_focus();
                         sensorconnection.lost_focus();
+
+                        if(renderer.get_window_id() == e.window.windowID)
+                        {
+                            renderer.lost_focus();
+                        }
+                        else
+                        {
+                            for(map<string, renderer_t*>::iterator it=windows.begin();it!=windows.end();it++)
+                            {
+                                if(it->second->get_window_id() == e.window.windowID)
+                                {
+                                    it->second->lost_focus();
+                                    break;
+                                }
+                            }
+                        }
                         break;
                     case SDL_WINDOWEVENT_FOCUS_GAINED:
 #if DEBUG
@@ -244,6 +292,46 @@ int main(int argc, char *argv[])
                         sfconnection.gained_focus();
                         sensorconnection.gained_focus();
                         have_focus = 1;
+                        if(renderer.get_window_id() == e.window.windowID)
+                        {
+                            go_home();
+                            renderer.gained_focus();
+                        }
+                        else
+                        {
+                            for(map<string, renderer_t*>::iterator it=windows.begin();it!=windows.end();it++)
+                            {
+                                if(it->second->get_window_id() == e.window.windowID)
+                                {
+                                    start_app(it->first.c_str());
+                                    it->second->gained_focus();
+                                    break;
+                                }
+                            }
+                        }
+                        break;
+                    case SDL_WINDOWEVENT_CLOSE:
+#if DEBUG
+                        cout << "window closed" << endl;
+#endif
+                        if(renderer.get_window_id() == e.window.windowID)
+                        {
+                            err = 0;
+                            goto quit;
+                        }
+                        else
+                        {
+                            for(map<string, renderer_t*>::iterator it=windows.begin();it!=windows.end();it++)
+                            {
+                                if(it->second->get_window_id() == e.window.windowID)
+                                {
+                                    stop_app(it->first.c_str());
+                                    it->second->deinit();
+                                    windows.erase(it);
+                                    break;
+                                }
+                            }
+                        }
                         break;
                 }
             }
@@ -332,10 +420,16 @@ int main(int argc, char *argv[])
 quit:
     uinput.deinit();
     renderer.deinit();
+    for(map<string, renderer_t*>::iterator it=windows.begin();it!=windows.end();it++)
+    {
+        stop_app(it->first.c_str());
+        it->second->deinit();
+    }
     sensorconnection.stop_thread();
     sensorconnection.deinit();
     sfconnection.stop_thread();
     sfconnection.deinit();
+    SDL_Quit();
     rmdir(SFDROID_ROOT);
     return err;
 }

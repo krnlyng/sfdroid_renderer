@@ -21,7 +21,8 @@
 #include "utility.h"
 
 #include <fstream>
-#include <cstdlib>
+#include <unistd.h>
+#include <cstring>
 
 using namespace std;
 
@@ -33,6 +34,29 @@ void touch(const char *fname)
 
 void wakeup_android()
 {
-    system("/usr/bin/sfdroid_powerup");
+    system("/usr/bin/sfdroid_powerup &");
+}
+
+void start_app(const char *appandactivity)
+{
+    char buff[5120];
+    snprintf(buff, 5120, "/usr/bin/am start --user 0 -n %s &", appandactivity);
+    system(buff);
+}
+
+void go_home()
+{
+    system("/usr/bin/am start --user 0 -c android.intent.category.HOME -a android.intent.action.MAIN &");
+}
+
+void stop_app(const char *appandactivity)
+{
+    char app[5120];
+    char buff[5120];
+    strncpy(app, appandactivity, 5120);
+    char *slash = strstr(app, "/");
+    if(slash != NULL) *slash = 0;
+    snprintf(buff, 5120, "/usr/bin/am force-stop --user 0 %s &", app);
+    system(buff);
 }
 

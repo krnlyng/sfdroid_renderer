@@ -4,5 +4,9 @@
 void touch(const char *fname);
 void wakeup_android();
 
+void go_home();
+void start_app(const char *appandactivity);
+void stop_app(const char *appandactivity);
+
 #endif
 
