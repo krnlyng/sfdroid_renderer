@@ -14,6 +14,7 @@ CFLAGS  += `pkg-config --cflags glesv1_cm`
 CFLAGS  += `pkg-config --cflags egl`
 CFLAGS  += `pkg-config --cflags wayland-egl`
 CFLAGS  += -I/usr/include/android
+CFLAGS  += -I/usr/lib/droid-devel/droid-headers
 CFLAGS  += `pkg-config --cflags sensord-qt5` `pkg-config --cflags Qt5DBus` `pkg-config --cflags Qt5Network` -D_REENTRANT -fPIE -DQT_NO_DEBUG -DQT_DBUS_LIB -DQT_NETWORK_LIB -DQT_CORE_LIB 
 
 CXXFLAGS    += `pkg-config --cflags sdl2`
@@ -21,6 +22,7 @@ CXXFLAGS    += `pkg-config --cflags glesv1_cm`
 CXXFLAGS    += `pkg-config --cflags egl`
 CXXFLAGS    += `pkg-config --cflags wayland-egl`
 CXXFLAGS    += -I/usr/include/android
+CXXFLAGS    += -I/usr/lib/droid-devel/droid-headers
 CXXFLAGS    += `pkg-config --cflags sensord-qt5` `pkg-config --cflags Qt5DBus` `pkg-config --cflags Qt5Network` -D_REENTRANT -fPIE -DQT_NO_DEBUG -DQT_DBUS_LIB -DQT_NETWORK_LIB -DQT_CORE_LIB 
 
 LDLIBS  += `pkg-config --libs sdl2`
