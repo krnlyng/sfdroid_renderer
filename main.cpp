@@ -122,6 +122,9 @@ int main(int argc, char *argv[])
         goto quit;
     }
 
+    windows["asd.vector.sensor/.MainActivity"] = new renderer_t();
+    windows["asd.vector.sensor/.MainActivity"]->init();
+
     if(renderer.init() != 0)
     {
         err = 1;
@@ -196,6 +199,16 @@ int main(int argc, char *argv[])
                     if(renderer.is_active())
                     {
                         failed = renderer.render_buffer(buffer, *info);
+                        static int hack = 0;
+                        if(!hack)
+                        {
+                            for(map<string, renderer_t*>::iterator it=windows.begin();it!=windows.end();it++)
+                            {
+                                failed = it->second->render_buffer(buffer, *info);
+                                hack = 1;
+                                break;
+                            }
+                        }
                     }
                     else
                     {
