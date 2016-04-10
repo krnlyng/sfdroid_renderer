@@ -94,6 +94,10 @@ bool is_blacklisted(string app)
     {
         return true;
     }
+    else if(app == "com.android.systemui")
+    {
+        return true;
+    }
     return false;
 }
 
