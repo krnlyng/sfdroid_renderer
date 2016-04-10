@@ -4,6 +4,7 @@
 #define SFDROID_ROOT "/tmp/sfdroid"
 #define SHAREBUFFER_HANDLE_FILE (SFDROID_ROOT "/gralloc_buffer_handle")
 #define SENSORS_HANDLE_FILE (SFDROID_ROOT "/sensors_handle")
+#define APP_HELPERS_HANDLE_FILE (SFDROID_ROOT "/app_helpers_handle")
 
 // hmmm
 #define MAX_NUM_FDS 32

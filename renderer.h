@@ -9,6 +9,7 @@
 #include <hardware/hardware.h>
 #include <hardware/gralloc.h>
 #include <system/window.h>
+#include <string>
 
 #include <EGL/egl.h>
 #include <EGL/eglext.h>
@@ -27,7 +28,9 @@ class renderer_t {
         void lost_focus();
         uint32_t get_window_id();
         bool is_active();
-        void deinit(); 
+        void deinit();
+        void set_activity(std::string activity);
+        std::string get_activity();
 
     private:
         int win_width, win_height;
@@ -53,6 +56,8 @@ class renderer_t {
         int last_pixel_format;
 
         int frames_since_focus_gained;
+
+        std::string activity;
 };
 
 #endif

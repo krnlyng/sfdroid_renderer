@@ -31,6 +31,7 @@
 #include "sensorconnection.h"
 #include "utility.h"
 #include "uinput.h"
+#include "appconnection.h"
 
 using namespace std;
 
@@ -87,6 +88,15 @@ void erase_slot(vector<int> &slot_to_fingerId, int fingerId)
     }
 }
 
+bool is_blacklisted(string app)
+{
+    if(app == "com.cyanogenmod.trebuchet")
+    {
+        return true;
+    }
+    return false;
+}
+
 int main(int argc, char *argv[])
 {
     int err = 0;
@@ -99,10 +109,11 @@ int main(int argc, char *argv[])
     sensorconnection_t sensorconnection;
     renderer_t renderer;
     map<string, renderer_t*> windows;
+    appconnection_t appconnection(renderer, windows);
     uinput_t uinput;
     vector<int> slot_to_fingerId;
 
-    uint32_t our_sdl_event = 0;
+    uint32_t buffer_sdl_event = 0, app_sdl_event = 0;
 
     unsigned int last_time = 0, current_time = 0;
     int frames = 0;
@@ -129,6 +140,15 @@ int main(int argc, char *argv[])
     }
     renderer.gained_focus();
 
+    buffer_sdl_event = SDL_RegisterEvents(1);
+    app_sdl_event = SDL_RegisterEvents(1);
+
+    if(appconnection.init(app_sdl_event) != 0)
+    {
+        err = 1;
+        goto quit;
+    }
+
     swipe_hack_dist_x = (SWIPE_HACK_PIXEL_PERCENT * renderer.get_width()) / 100;
     swipe_hack_dist_y = (SWIPE_HACK_PIXEL_PERCENT * renderer.get_height()) / 100;
 
@@ -136,9 +156,7 @@ int main(int argc, char *argv[])
     cout << "swipe hack dist (x,y): (" << swipe_hack_dist_x << "," << swipe_hack_dist_y << ")" << endl;
 #endif
 
-    our_sdl_event = SDL_RegisterEvents(1);
-
-    if(sfconnection.init(our_sdl_event) != 0)
+    if(sfconnection.init(buffer_sdl_event) != 0)
     {
         err = 2;
         goto quit;
@@ -160,6 +178,7 @@ int main(int argc, char *argv[])
     }
 
     sfconnection.start_thread();
+    appconnection.start_thread();
     sensorconnection.start_thread();
 
     SDL_Event e;
@@ -181,7 +200,7 @@ int main(int argc, char *argv[])
                 goto quit;
             }
 
-            if(e.type == our_sdl_event)
+            if(e.type == buffer_sdl_event)
             {
                 if(e.user.code == BUFFER)
                 {
@@ -256,6 +275,72 @@ int main(int argc, char *argv[])
                 }
             }
 
+            if(e.type == app_sdl_event)
+            {
+                string appandactivity, app, activity;
+                string::size_type pos;
+                appandactivity = appconnection.get_new_window();
+                pos = appandactivity.find("/");
+
+                app = appandactivity.substr(0, pos);
+                activity = appandactivity.substr(pos + 1);
+
+                if(!is_blacklisted(app))
+                {
+#if DEBUG
+                    cout << "new app: " << app << endl;
+#endif
+                    // make other windows loose focus.
+                    if(renderer.is_active())
+                    {
+                        renderer.lost_focus();
+                    }
+                    else
+                    {
+                        for(map<string, renderer_t*>::iterator it=windows.begin();it!=windows.end();it++)
+                        {
+                            if(app != it->first)
+                            {
+                                if(it->second->is_active())
+                                {
+                                    it->second->lost_focus();
+                                    break;
+                                }
+                            }
+                        }
+                    }
+
+                    map<string, renderer_t*>::iterator it = windows.find(app);
+
+                    bool is_active = false;
+                    // hack to bring window to front. SDL_ShowWindow, SDL_RaiseWindow don't work
+                    if(it != windows.end())
+                    {
+                        if(it->second != nullptr)
+                        {
+                            if(!it->second->is_active())
+                            {
+                                it->second->deinit();
+                                windows.erase(it);
+                            }
+                            else
+                            {
+                                is_active = true;
+                            }
+                        }
+                    }
+
+                    if(!is_active)
+                    {
+                        windows[app] = new renderer_t();
+                        windows[app]->init();
+
+                        windows[app]->gained_focus();
+                        windows[app]->set_activity(activity);
+                    }
+                }
+            }
+
             if(e.type == SDL_WINDOWEVENT)
             {
                 switch(e.window.event)
@@ -270,7 +355,7 @@ int main(int argc, char *argv[])
 
                         if(renderer.get_window_id() == e.window.windowID)
                         {
-                            renderer.lost_focus();
+                            if(renderer.is_active()) renderer.lost_focus();
                         }
                         else
                         {
@@ -278,7 +363,7 @@ int main(int argc, char *argv[])
                             {
                                 if(it->second->get_window_id() == e.window.windowID)
                                 {
-                                    it->second->lost_focus();
+                                    if(it->second->is_active()) it->second->lost_focus();
                                     break;
                                 }
                             }
@@ -303,7 +388,7 @@ int main(int argc, char *argv[])
                             {
                                 if(it->second->get_window_id() == e.window.windowID)
                                 {
-                                    start_app(it->first.c_str());
+                                    start_app((it->first + "/" + it->second->get_activity()).c_str());
                                     it->second->gained_focus();
                                     break;
                                 }
@@ -327,6 +412,7 @@ int main(int argc, char *argv[])
                                 {
                                     stop_app(it->first.c_str());
                                     it->second->deinit();
+                                    delete it->second;
                                     windows.erase(it);
                                     break;
                                 }
@@ -420,6 +506,8 @@ int main(int argc, char *argv[])
 quit:
     uinput.deinit();
     renderer.deinit();
+    appconnection.stop_thread();
+    appconnection.deinit();
     for(map<string, renderer_t*>::iterator it=windows.begin();it!=windows.end();it++)
     {
         stop_app(it->first.c_str());

@@ -50,13 +50,12 @@ int renderer_t::init()
     EGLint contextParams[] = {EGL_CONTEXT_CLIENT_VERSION, 1, EGL_NONE};
     EGLint numConfigs;
 
-    instances++;
-
 #if DEBUG
     cout << "creating SDL window" << endl;
 #endif
 
     snprintf(windowname, 128, "sfdroid%d", instances);
+    instances++;
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 1);
     window = SDL_CreateWindow(windowname, SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, 0, 0, SDL_WINDOW_OPENGL | SDL_WINDOW_FULLSCREEN);
     if(window == NULL)
@@ -195,7 +194,10 @@ void renderer_t::deinit()
     wl_egl_window_destroy(w_egl_window);
     eglDestroyContext(egl_dpy, egl_ctx);
     instances--;
-    if(instances == 0) eglTerminate(egl_dpy);
+    if(instances == 0)
+    {
+        eglTerminate(egl_dpy);
+    }
     if(window) SDL_DestroyWindow(window);
 }
 
@@ -242,7 +244,7 @@ int renderer_t::draw_raw(void *data, int width, int height, int pixel_format)
         goto quit;
     }
     gl_err = glGetError();
-    if(gl_err != GL_NO_ERROR) cout << "glGetError(): " << gl_err << endl;
+    if(gl_err != GL_NO_ERROR) cerr << "glGetError(): " << gl_err << endl;
 
     glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
     eglSwapBuffers(egl_dpy, egl_surf);
@@ -264,6 +266,7 @@ int renderer_t::save_screen()
 
     if(buffer == nullptr)
     {
+        cerr << "buffer is null" << endl;
         err = 2;
         goto quit;
     }
@@ -275,6 +278,7 @@ int renderer_t::save_screen()
 
     if(gerr)
     {
+        cerr << "gralloc lock failed" << endl;
         err = 3;
         goto quit;
     }
@@ -298,6 +302,8 @@ int renderer_t::save_screen()
         err = 1;
         goto quit;
     }
+
+    gralloc_module->unlock(gralloc_module, buffer->handle);
 
     last_pixel_format = buffer->format;
 
@@ -328,6 +334,7 @@ void renderer_t::lost_focus()
     {
         cerr << "failed to save screen" << endl;
     }
+    SDL_HideWindow(window);
     eglMakeCurrent(egl_dpy, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
     have_focus = false;
 }
@@ -368,5 +375,15 @@ int renderer_t::get_height()
 int renderer_t::get_width()
 {
     return win_width;
+}
+
+void renderer_t::set_activity(string the_activity)
+{
+    activity = the_activity;
+}
+
+string renderer_t::get_activity()
+{
+    return activity;
 }
 

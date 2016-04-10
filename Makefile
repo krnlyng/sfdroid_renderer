@@ -1,5 +1,5 @@
 OUT         := sfdroid
-SRC         := main.cpp uinput.cpp renderer.cpp sfdroid_funcs.cpp sfconnection.cpp utility.cpp sensorconnection.cpp
+SRC         := main.cpp uinput.cpp renderer.cpp sfdroid_funcs.cpp sfconnection.cpp utility.cpp sensorconnection.cpp appconnection.cpp
 OBJ         := $(patsubst %.c, %.o, $(filter %.c, $(SRC)))
 OBJ         += $(patsubst %.cpp, %.o, $(filter %.cpp, $(SRC)))
 DEP         := $(OBJ:.o=.d)
