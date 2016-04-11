@@ -108,14 +108,14 @@ int sfconnection_t::wait_for_buffer(int &timedout)
     r = recv(fd_client, buf, 1, 0);
     if(r < 0)
     {
-        if(errno == ETIMEDOUT || errno == EAGAIN)
+        if(errno == ETIMEDOUT || errno == EAGAIN || errno == EINTR)
         {
             timedout = 1;
             err = 0;
             goto quit;
         }
 
-        cerr << "lost client" << endl;
+        cerr << "lost client " << strerror(errno) << endl;
         err = 1;
         goto quit;
     }

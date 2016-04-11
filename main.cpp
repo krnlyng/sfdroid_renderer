@@ -111,9 +111,9 @@ int main(int argc, char *argv[])
 
     sfconnection_t sfconnection;
     sensorconnection_t sensorconnection;
-    renderer_t renderer;
+    renderer_t *renderer = new renderer_t();
     map<string, renderer_t*> windows;
-    appconnection_t appconnection(renderer, windows);
+    appconnection_t appconnection;
     uinput_t uinput;
     vector<int> slot_to_fingerId;
 
@@ -137,12 +137,12 @@ int main(int argc, char *argv[])
         goto quit;
     }
 
-    if(renderer.init() != 0)
+    if(renderer->init() != 0)
     {
         err = 1;
         goto quit;
     }
-    renderer.gained_focus();
+    renderer->gained_focus(true);
 
     buffer_sdl_event = SDL_RegisterEvents(1);
     app_sdl_event = SDL_RegisterEvents(1);
@@ -153,8 +153,8 @@ int main(int argc, char *argv[])
         goto quit;
     }
 
-    swipe_hack_dist_x = (SWIPE_HACK_PIXEL_PERCENT * renderer.get_width()) / 100;
-    swipe_hack_dist_y = (SWIPE_HACK_PIXEL_PERCENT * renderer.get_height()) / 100;
+    swipe_hack_dist_x = (SWIPE_HACK_PIXEL_PERCENT * renderer->get_width()) / 100;
+    swipe_hack_dist_y = (SWIPE_HACK_PIXEL_PERCENT * renderer->get_height()) / 100;
 
 #if DEBUG
     cout << "swipe hack dist (x,y): (" << swipe_hack_dist_x << "," << swipe_hack_dist_y << ")" << endl;
@@ -175,7 +175,7 @@ int main(int argc, char *argv[])
 #if DEBUG
     cout << "setting up uinput" << endl;
 #endif
-    if(uinput.init(renderer.get_width(), renderer.get_height()) != 0)
+    if(uinput.init(renderer->get_width(), renderer->get_height()) != 0)
     {
         err = 5;
         goto quit;
@@ -196,6 +196,21 @@ int main(int argc, char *argv[])
             usleep(SLEEPTIME_NO_FOCUS_US);
         }
 
+#if 0
+        bool deleted = true;
+        while(deleted)
+        {
+            deleted = false;
+            for(list<renderer_t*>::iterator it=windows_to_erase.begin();it!=windows_to_erase.end();it++)
+            {
+                (*it)->deinit();
+                delete (*it);
+                windows_to_erase.erase(it);
+                deleted = true;
+                break;
+           }
+        }
+#endif
         while(SDL_WaitEventTimeout(&e, 16))
         {
             if(e.type == SDL_QUIT)
@@ -216,9 +231,9 @@ int main(int argc, char *argv[])
                     info = sfconnection.get_current_info();
 
                     int failed = 1;
-                    if(renderer.is_active())
+                    if(renderer->is_active())
                     {
-                        failed = renderer.render_buffer(buffer, *info);
+                        failed = renderer->render_buffer(buffer, *info);
                     }
                     else
                     {
@@ -250,9 +265,9 @@ int main(int argc, char *argv[])
                     // we cannot save the screen anymore with the new rendering method therefore
                     // this method.
                     int failed = 1;
-                    if(renderer.is_active())
+                    if(renderer->is_active())
                     {
-                        failed = renderer.render_buffer(buffer, *info);
+                        failed = renderer->render_buffer(buffer, *info);
                     }
                     else
                     {
@@ -286,18 +301,26 @@ int main(int argc, char *argv[])
                 appandactivity = appconnection.get_new_window();
                 pos = appandactivity.find("/");
 
-                app = appandactivity.substr(0, pos);
-                activity = appandactivity.substr(pos + 1);
+                if(pos != std::string::npos)
+                {
+                    app = appandactivity.substr(0, pos);
+                    activity = appandactivity.substr(pos + 1);
+                }
+                else
+                {
+                    app = appandactivity;
+                    activity = "";
+                }
 
                 if(!is_blacklisted(app))
                 {
 #if DEBUG
-                    cout << "new app: " << app << endl;
+                    cout << "new app or closing: " << app << endl;
 #endif
                     // make other windows loose focus.
-                    if(renderer.is_active())
+                    if(renderer->is_active())
                     {
-                        renderer.lost_focus();
+                        renderer->lost_focus();
                     }
                     else
                     {
@@ -314,18 +337,38 @@ int main(int argc, char *argv[])
                         }
                     }
 
-                    map<string, renderer_t*>::iterator it = windows.find(app);
+                    map<string, renderer_t*>::iterator the_window = windows.find(app);
 
                     bool is_active = false;
                     // hack to bring window to front. SDL_ShowWindow, SDL_RaiseWindow don't work
-                    if(it != windows.end())
+                    if(the_window != windows.end())
                     {
-                        if(it->second != nullptr)
+                        if(the_window->second != nullptr)
                         {
-                            if(!it->second->is_active())
+                            if(!the_window->second->is_active())
                             {
-                                it->second->deinit();
-                                windows.erase(it);
+                                the_window->second->deinit();
+                                delete the_window->second;
+                                windows.erase(the_window);
+                                break;
+                            }
+                            else if(e.user.code == CLOSE_APP)
+                            {
+                                // SDL/wayland crash avoidance
+
+                                //stop_app(app.c_str());
+                                // bring renderer to front
+                                the_window->second->lost_focus();
+
+                                renderer->deinit();
+                                delete renderer;
+                                renderer = new renderer_t();
+                                renderer->init();
+                                renderer->gained_focus(true);
+
+                                the_window->second->deinit();
+                                delete the_window->second;
+                                windows.erase(the_window);
                             }
                             else
                             {
@@ -334,13 +377,16 @@ int main(int argc, char *argv[])
                         }
                     }
 
-                    if(!is_active)
+                    if(e.user.code != CLOSE_APP)
                     {
-                        windows[app] = new renderer_t();
-                        windows[app]->init();
+                        if(!is_active)
+                        {
+                            windows[app] = new renderer_t();
+                            windows[app]->init();
 
-                        windows[app]->gained_focus();
-                        windows[app]->set_activity(activity);
+                            windows[app]->gained_focus();
+                            windows[app]->set_activity(activity);
+                        }
                     }
                 }
             }
@@ -357,9 +403,9 @@ int main(int argc, char *argv[])
                         sfconnection.lost_focus();
                         sensorconnection.lost_focus();
 
-                        if(renderer.get_window_id() == e.window.windowID)
+                        if(renderer->get_window_id() == e.window.windowID)
                         {
-                            if(renderer.is_active()) renderer.lost_focus();
+                            if(renderer->is_active()) renderer->lost_focus();
                         }
                         else
                         {
@@ -381,10 +427,10 @@ int main(int argc, char *argv[])
                         sfconnection.gained_focus();
                         sensorconnection.gained_focus();
                         have_focus = 1;
-                        if(renderer.get_window_id() == e.window.windowID)
+                        if(renderer->get_window_id() == e.window.windowID)
                         {
                             go_home();
-                            renderer.gained_focus();
+                            renderer->gained_focus();
                         }
                         else
                         {
@@ -403,7 +449,7 @@ int main(int argc, char *argv[])
 #if DEBUG
                         cout << "window closed" << endl;
 #endif
-                        if(renderer.get_window_id() == e.window.windowID)
+                        if(renderer->get_window_id() == e.window.windowID)
                         {
                             err = 0;
                             goto quit;
@@ -473,12 +519,12 @@ int main(int argc, char *argv[])
                             x = 0;
                         }
                         else x = e.tfinger.x;
-                        if(e.tfinger.x >= renderer.get_width() - swipe_hack_dist_x)
+                        if(e.tfinger.x >= renderer->get_width() - swipe_hack_dist_x)
                         {
 #if DEBUG
                             cout << "swipe hack x" << endl;
 #endif
-                            x = renderer.get_width();
+                            x = renderer->get_width();
                         }
                         if(e.tfinger.y <= swipe_hack_dist_y)
                         {
@@ -488,12 +534,12 @@ int main(int argc, char *argv[])
                             y = 0;
                         }
                         else y = e.tfinger.y;
-                        if(e.tfinger.y >= renderer.get_height() - swipe_hack_dist_y)
+                        if(e.tfinger.y >= renderer->get_height() - swipe_hack_dist_y)
                         {
 #if DEBUG
                             cout << "swipe hack y" << endl;
 #endif
-                            y = renderer.get_height();
+                            y = renderer->get_height();
                         }
                         uinput.send_event(EV_ABS, ABS_MT_POSITION_X, x);
                         uinput.send_event(EV_ABS, ABS_MT_POSITION_Y, y);
@@ -509,9 +555,10 @@ int main(int argc, char *argv[])
 
 quit:
     uinput.deinit();
-    renderer.deinit();
     appconnection.stop_thread();
     appconnection.deinit();
+    renderer->deinit();
+    delete renderer;
     for(map<string, renderer_t*>::iterator it=windows.begin();it!=windows.end();it++)
     {
         stop_app(it->first.c_str());

@@ -13,7 +13,7 @@
 
 class appconnection_t {
     public:
-        appconnection_t(renderer_t &renderer, std::map<std::string, renderer_t*> &windows) : fd_socket(-1), fd_client(-1), running(false), have_focus(true), my_renderer(renderer), my_windows(windows) {}
+        appconnection_t() : fd_socket(-1), fd_client(-1), running(false), have_focus(true) {}
         int init(uint32_t the_sdl_evenv);
         void deinit();
         int wait_for_client();
@@ -39,8 +39,6 @@ class appconnection_t {
         bool have_focus;
 
         uint32_t sdl_event;
-        renderer_t &my_renderer;
-        std::map<std::string, renderer_t*> &my_windows;
         std::string new_window;
 };
 

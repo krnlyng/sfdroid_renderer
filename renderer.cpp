@@ -198,7 +198,10 @@ void renderer_t::deinit()
     {
         eglTerminate(egl_dpy);
     }
-    if(window) SDL_DestroyWindow(window);
+    if(window)
+    {
+        SDL_DestroyWindow(window);
+    }
 }
 
 int renderer_t::draw_raw(void *data, int width, int height, int pixel_format)
@@ -334,14 +337,14 @@ void renderer_t::lost_focus()
     {
         cerr << "failed to save screen" << endl;
     }
-    SDL_HideWindow(window);
     eglMakeCurrent(egl_dpy, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
     have_focus = false;
 }
 
-void renderer_t::gained_focus()
+void renderer_t::gained_focus(bool no_delay)
 {
-    frames_since_focus_gained = 0;
+    if(!no_delay) frames_since_focus_gained = 0;
+    else frames_since_focus_gained = 30;
     eglMakeCurrent(egl_dpy, egl_surf, egl_surf, egl_ctx);
     have_focus = true;
 }

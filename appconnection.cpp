@@ -139,13 +139,25 @@ void appconnection_t::thread_loop()
             {
                 if(!timedout)
                 {
-                    // todo wait for main to have processed
-                    new_window = app;
-
-                    // tell main to show
                     SDL_Event event;
                     SDL_memset(&event, 0, sizeof(event));
                     event.type = sdl_event;
+
+                    if(app.find("close:") != std::string::npos)
+                    {
+                        app = app.substr(app.find("close:") + 6);
+
+                        // todo wait for main to have processed
+                        new_window = app;
+                        event.user.code = CLOSE_APP;
+                    }
+                    else
+                    {
+                        new_window = app;
+                        event.user.code = START_APP;
+                    }
+
+                    // tell main to show/close
                     SDL_PushEvent(&event);
                 }
             }
@@ -171,24 +183,23 @@ int appconnection_t::wait_for_request(int &type, int &timedout, string &app)
     char buffer[256];
     int16_t len;
 
-    len = recv(fd_client, syncbuf, 2, 0);
+    len = recv(fd_client, syncbuf, 2, MSG_WAITALL);
     if(len < 0)
     {
-        if(errno == ETIMEDOUT || errno == EAGAIN)
+        if(errno == ETIMEDOUT || errno == EAGAIN || errno == EINTR)
         {
             timedout = 1;
             err = 0;
             goto quit;
         }
 
-        cerr << "appconnection: lost client" << endl;
+        cerr << "appconnection: lost client " << strerror(errno) << endl;
         err = 1;
         goto quit;
     }
 
     memcpy(&len, syncbuf, 2);
-
-    len = recv(fd_client, buffer, len, 0);
+    len = recv(fd_client, buffer, len, MSG_WAITALL);
     if(len < 0)
     {
         if(errno == ETIMEDOUT || errno == EAGAIN)
@@ -198,7 +209,7 @@ int appconnection_t::wait_for_request(int &type, int &timedout, string &app)
             goto quit;
         }
 
-        cerr << "appconnection: lost client" << endl;
+        cerr << "appconnection: lost client " << strerror(errno) << endl;
         err = 1;
         goto quit;
     }

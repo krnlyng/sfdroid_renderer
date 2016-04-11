@@ -199,10 +199,10 @@ int sensorconnection_t::wait_for_request(int &type, int &timedout)
     char buffer[256];
     int len;
 
-    len = recv(fd_client, syncbuf, 1, 0);
+    len = recv(fd_client, syncbuf, 1, MSG_WAITALL);
     if(len < 0)
     {
-        if(errno == ETIMEDOUT || errno == EAGAIN)
+        if(errno == ETIMEDOUT || errno == EAGAIN || errno == EINTR)
         {
             timedout = 1;
             err = 0;
@@ -214,7 +214,7 @@ int sensorconnection_t::wait_for_request(int &type, int &timedout)
         goto quit;
     }
 
-    len = recv(fd_client, buffer, syncbuf[0], 0);
+    len = recv(fd_client, buffer, syncbuf[0], MSG_WAITALL);
     if(len < 0)
     {
         if(errno == ETIMEDOUT || errno == EAGAIN)
