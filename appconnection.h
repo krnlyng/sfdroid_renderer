@@ -9,8 +9,6 @@
 
 #include <SDL.h>
 
-#include "renderer.h"
-
 class appconnection_t {
     public:
         appconnection_t() : fd_socket(-1), fd_client(-1), running(false), have_focus(true) {}
