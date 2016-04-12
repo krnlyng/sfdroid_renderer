@@ -358,7 +358,7 @@ int main(int argc, char *argv[])
 
                                 //stop_app(app.c_str());
                                 // bring renderer to front
-                                the_window->second->lost_focus();
+                                if(the_window->second->is_active()) the_window->second->lost_focus();
 
                                 renderer->deinit();
                                 delete renderer;
