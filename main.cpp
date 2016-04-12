@@ -116,6 +116,7 @@ int main(int argc, char *argv[])
     appconnection_t appconnection;
     uinput_t uinput;
     vector<int> slot_to_fingerId;
+    std::string last_appandactivity = "";
 
     uint32_t buffer_sdl_event = 0, app_sdl_event = 0;
 
@@ -386,6 +387,7 @@ int main(int argc, char *argv[])
 
                             windows[app]->gained_focus();
                             windows[app]->set_activity(activity);
+                            last_appandactivity = app + "/" + activity;
                         }
                     }
                 }
@@ -438,7 +440,11 @@ int main(int argc, char *argv[])
                             {
                                 if(it->second->get_window_id() == e.window.windowID)
                                 {
-                                    start_app((it->first + "/" + it->second->get_activity()).c_str());
+                                    if(it->first + "/" + it->second->get_activity() != last_appandactivity)
+                                    {
+                                        start_app((it->first + "/" + it->second->get_activity()).c_str());
+                                    }
+                                    last_appandactivity = it->first + "/" + it->second->get_activity();
                                     it->second->gained_focus();
                                     break;
                                 }
