@@ -197,21 +197,6 @@ int main(int argc, char *argv[])
             usleep(SLEEPTIME_NO_FOCUS_US);
         }
 
-#if 0
-        bool deleted = true;
-        while(deleted)
-        {
-            deleted = false;
-            for(list<renderer_t*>::iterator it=windows_to_erase.begin();it!=windows_to_erase.end();it++)
-            {
-                (*it)->deinit();
-                delete (*it);
-                windows_to_erase.erase(it);
-                deleted = true;
-                break;
-           }
-        }
-#endif
         while(SDL_WaitEventTimeout(&e, 16))
         {
             if(e.type == SDL_QUIT)
