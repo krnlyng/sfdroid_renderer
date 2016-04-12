@@ -356,7 +356,7 @@ int main(int argc, char *argv[])
                             {
                                 // SDL/wayland crash avoidance
 
-                                //stop_app(app.c_str());
+                                stop_app(app.c_str());
                                 // bring renderer to front
                                 if(the_window->second->is_active()) the_window->second->lost_focus();
 
