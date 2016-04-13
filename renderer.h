@@ -19,7 +19,7 @@
 
 class renderer_t {
     public:
-        renderer_t() : have_focus(0), window(nullptr), glcontext(nullptr), last_screen(nullptr), egl_surf(EGL_NO_SURFACE), egl_ctx(EGL_NO_CONTEXT), w_egl_window(nullptr), buffer(nullptr), last_pixel_format(0), frames_since_focus_gained(0) { }
+        renderer_t() : have_focus(0), window(nullptr), glcontext(nullptr), last_screen(nullptr), egl_surf(EGL_NO_SURFACE), egl_ctx(EGL_NO_CONTEXT), w_egl_window(nullptr), frames_since_focus_gained(0), my_want_to_save_screen(false) { }
         int init();
         int render_buffer(ANativeWindowBuffer *the_buffer, buffer_info_t &info);
         int get_height();
@@ -31,6 +31,9 @@ class renderer_t {
         void deinit();
         void set_activity(std::string activity);
         std::string get_activity();
+        bool want_to_save_screen();
+        int save_screen(ANativeWindowBuffer *buffer);
+        int dummy_draw(int stride, int height, int format);
 
     private:
         int win_width, win_height;
@@ -40,8 +43,6 @@ class renderer_t {
         SDL_Window *window;
         SDL_GLContext glcontext;
 
-        int save_screen();
-        int dummy_draw();
         int draw_raw(void *data, int width, int height, int pixel_format);
         void *last_screen;
 
@@ -49,15 +50,14 @@ class renderer_t {
         EGLSurface egl_surf;
         EGLContext egl_ctx;
         struct wl_egl_window *w_egl_window;
-        ANativeWindowBuffer *buffer;
         static int (*pfn_eglHybrisWaylandPostBuffer)(EGLNativeWindowType win, void *buffer);
         static int instances;
-
-        int last_pixel_format;
 
         int frames_since_focus_gained;
 
         std::string activity;
+
+        bool my_want_to_save_screen;
 };
 
 #endif

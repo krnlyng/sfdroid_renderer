@@ -230,19 +230,19 @@ int renderer_t::draw_raw(void *data, int width, int height, int pixel_format)
 
     glBindTexture(GL_TEXTURE_2D, dummy_tex);
 
-    if(buffer->format == HAL_PIXEL_FORMAT_RGBA_8888 || buffer->format == HAL_PIXEL_FORMAT_RGBX_8888)
+    if(pixel_format == HAL_PIXEL_FORMAT_RGBA_8888 || pixel_format == HAL_PIXEL_FORMAT_RGBX_8888)
     {
         glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0,
                 GL_RGBA, GL_UNSIGNED_BYTE, data);
     }
-    else if(buffer->format == HAL_PIXEL_FORMAT_RGB_565)
+    else if(pixel_format == HAL_PIXEL_FORMAT_RGB_565)
     {
         glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0,
                 GL_RGB, GL_UNSIGNED_SHORT_5_6_5, data);
     }
     else
     {
-        cerr << "unhandled pixel format: " << buffer->format << endl;
+        cerr << "unhandled pixel format: " << pixel_format << endl;
         err = 3;
         goto quit;
     }
@@ -261,18 +261,13 @@ uint32_t renderer_t::get_window_id()
     return SDL_GetWindowID(window);
 }
 
-int renderer_t::save_screen()
+int renderer_t::save_screen(ANativeWindowBuffer *buffer)
 {
     int err = 0;
     int gerr = 0;
     void *buffer_vaddr;
 
-    if(buffer == nullptr)
-    {
-        cerr << "buffer is null" << endl;
-        err = 2;
-        goto quit;
-    }
+    my_want_to_save_screen = false;
 
     gerr = gralloc_module->lock(gralloc_module, buffer->handle,
         GRALLOC_USAGE_SW_READ_RARELY,
@@ -308,35 +303,33 @@ int renderer_t::save_screen()
 
     gralloc_module->unlock(gralloc_module, buffer->handle);
 
-    last_pixel_format = buffer->format;
-
 quit:
     return err;
 }
 
-int renderer_t::dummy_draw()
+int renderer_t::dummy_draw(int stride, int height, int format)
 {
 #if DEBUG
     cout << "dummy draw" << endl;
 #endif
+
+    EGLSurface old_surf_r = eglGetCurrentSurface(EGL_READ);
+    EGLSurface old_surf_w = eglGetCurrentSurface(EGL_READ);
+    EGLContext old_ctx = eglGetCurrentContext();
+
+    eglMakeCurrent(egl_dpy, egl_surf, egl_surf, egl_ctx);
     if(last_screen != nullptr)
     {
-        return draw_raw(last_screen, buffer->stride, buffer->height, last_pixel_format);
+        return draw_raw(last_screen, stride, height, format);
     }
+    eglMakeCurrent(egl_dpy, old_surf_r, old_surf_w, old_ctx);
 
     return -1;
 }
 
 void renderer_t::lost_focus()
 {
-    if(save_screen() == 0)
-    {
-        dummy_draw();
-    }
-    else
-    {
-        cerr << "failed to save screen" << endl;
-    }
+    my_want_to_save_screen = true;
     eglMakeCurrent(egl_dpy, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
     have_focus = false;
 }
@@ -359,10 +352,14 @@ int renderer_t::render_buffer(ANativeWindowBuffer *the_buffer, buffer_info_t &in
     if(frames_since_focus_gained > 30)
     {
         pfn_eglHybrisWaylandPostBuffer((EGLNativeWindowType)w_egl_window, the_buffer);
-        buffer = the_buffer;
         if(eglGetError() != EGL_SUCCESS)
         {
             return 1;
+        }
+        if(last_screen != nullptr)
+        {
+            free(last_screen);
+            last_screen = nullptr;
         }
     }
     else frames_since_focus_gained++;
@@ -388,5 +385,10 @@ void renderer_t::set_activity(string the_activity)
 string renderer_t::get_activity()
 {
     return activity;
+}
+
+bool renderer_t::want_to_save_screen()
+{
+    return my_want_to_save_screen;
 }
 

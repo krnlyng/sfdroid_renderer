@@ -223,12 +223,22 @@ int main(int argc, char *argv[])
                     }
                     else
                     {
+                        if(renderer->want_to_save_screen())
+                        {
+                            renderer->save_screen(buffer);
+                            renderer->dummy_draw(buffer->stride, buffer->height, buffer->format);
+                        }
+
                         for(map<string, renderer_t*>::iterator it=windows.begin();it!=windows.end();it++)
                         {
                             if(it->second->is_active())
                             {
                                 failed = it->second->render_buffer(buffer, *info);
-                                break;
+                            }
+                            else if(it->second->want_to_save_screen())
+                            {
+                                it->second->save_screen(buffer);
+                                it->second->dummy_draw(buffer->stride, buffer->height, buffer->format);
                             }
                         }
                     }
@@ -257,12 +267,22 @@ int main(int argc, char *argv[])
                     }
                     else
                     {
+                        if(renderer->want_to_save_screen())
+                        {
+                            renderer->save_screen(buffer);
+                            renderer->dummy_draw(buffer->stride, buffer->height, buffer->format);
+                        }
+
                         for(map<string, renderer_t*>::iterator it=windows.begin();it!=windows.end();it++)
                         {
                             if(it->second->is_active())
                             {
                                 failed = it->second->render_buffer(buffer, *info);
-                                break;
+                            }
+                            else if(it->second->want_to_save_screen())
+                            {
+                                it->second->save_screen(buffer);
+                                it->second->dummy_draw(buffer->stride, buffer->height, buffer->format);
                             }
                         }
                     }
