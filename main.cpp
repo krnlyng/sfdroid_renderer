@@ -110,13 +110,16 @@ int main(int argc, char *argv[])
     int have_focus = 1;
 
     sfconnection_t sfconnection;
-    sensorconnection_t sensorconnection;
     renderer_t *renderer = new renderer_t();
     map<string, renderer_t*> windows;
     appconnection_t appconnection;
+    std::string last_appandactivity = "";
+    bool renderer_was_last = false;
+
+    sensorconnection_t sensorconnection;
+
     uinput_t uinput;
     vector<int> slot_to_fingerId;
-    std::string last_appandactivity = "";
 
     uint32_t buffer_sdl_event = 0, app_sdl_event = 0;
 
@@ -436,7 +439,11 @@ int main(int argc, char *argv[])
                         have_focus = 1;
                         if(renderer->get_window_id() == e.window.windowID)
                         {
-                            go_home();
+                            if(!renderer_was_last)
+                            {
+                                go_home();
+                            }
+                            renderer_was_last = true;
                             renderer->gained_focus();
                         }
                         else
