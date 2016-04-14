@@ -349,7 +349,7 @@ bool handle_window_event(SDL_Event &e, sfconnection_t &sfconnection, renderer_t 
     return false;
 }
 
-void handle_app_event(SDL_Event &e, renderer_t *renderer, map<string, renderer_t*> &windows, appconnection_t &appconnection, std::string &last_appandactivity, bool &renderer_was_last)
+void handle_app_event(SDL_Event &e, renderer_t *&renderer, map<string, renderer_t*> &windows, appconnection_t &appconnection, std::string &last_appandactivity, bool &renderer_was_last)
 {
 #ifdef DEBUG
     cout << "received app event" << endl;
