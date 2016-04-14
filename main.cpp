@@ -180,13 +180,12 @@ void handle_input_events(SDL_Event &e, uinput_t &uinput, vector<int> &slot_to_fi
     }
 }
 
-void handle_buffer_event(SDL_Event &e, sfconnection_t &sfconnection, renderer_t *renderer, map<string, renderer_t*> &windows, unsigned int &last_time, unsigned int &current_time, int &frames)
+int handle_buffer_event(SDL_Event &e, sfconnection_t &sfconnection, renderer_t *renderer, map<string, renderer_t*> &windows, unsigned int &last_time, unsigned int &current_time, int &frames)
 {
+    int failed = 1;
+
     if(e.user.code == BUFFER)
     {
-#ifdef DEBUG
-        cout << "buffer received" << endl;
-#endif
         // sfconnection has a new buffer
         ANativeWindowBuffer *buffer;
         buffer_info_t *info;
@@ -194,33 +193,20 @@ void handle_buffer_event(SDL_Event &e, sfconnection_t &sfconnection, renderer_t 
         buffer = sfconnection.get_current_buffer();
         info = sfconnection.get_current_info();
 
-        int failed = 1;
         if(renderer->is_active())
         {
             failed = renderer->render_buffer(buffer, *info);
         }
         else
         {
-            if(renderer->want_to_save_screen())
-            {
-                renderer->save_screen(buffer);
-                renderer->dummy_draw(buffer->stride, buffer->height, buffer->format);
-            }
-
             for(map<string, renderer_t*>::iterator it=windows.begin();it!=windows.end();it++)
             {
                 if(it->second->is_active())
                 {
                     failed = it->second->render_buffer(buffer, *info);
                 }
-                else if(it->second->want_to_save_screen())
-                {
-                    it->second->save_screen(buffer);
-                    it->second->dummy_draw(buffer->stride, buffer->height, buffer->format);
-                }
             }
         }
-        sfconnection.notify_buffer_done(failed);
 
         frames++;
     }
@@ -241,33 +227,20 @@ void handle_buffer_event(SDL_Event &e, sfconnection_t &sfconnection, renderer_t 
         // the other buffers and not the one that was just sent.
         // we cannot save the screen anymore with the new rendering method therefore
         // this method.
-        int failed = 1;
         if(renderer->is_active())
         {
             failed = renderer->render_buffer(buffer, *info);
         }
         else
         {
-            if(renderer->want_to_save_screen())
-            {
-                renderer->save_screen(buffer);
-                renderer->dummy_draw(buffer->stride, buffer->height, buffer->format);
-            }
-
             for(map<string, renderer_t*>::iterator it=windows.begin();it!=windows.end();it++)
             {
                 if(it->second->is_active())
                 {
                     failed = it->second->render_buffer(buffer, *info);
                 }
-                else if(it->second->want_to_save_screen())
-                {
-                    it->second->save_screen(buffer);
-                    it->second->dummy_draw(buffer->stride, buffer->height, buffer->format);
-                }
             }
         }
-        sfconnection.notify_buffer_done(failed);
 
         frames++;
     }
@@ -279,6 +252,8 @@ void handle_buffer_event(SDL_Event &e, sfconnection_t &sfconnection, renderer_t 
         last_time = current_time;
         frames = 0;
     }
+
+    return failed;
 }
 
 bool handle_window_event(SDL_Event &e, sfconnection_t &sfconnection, renderer_t *renderer, map<string, renderer_t*> &windows, sensorconnection_t &sensorconnection, int &have_focus, std::string &last_appandactivity, bool &renderer_was_last)
@@ -335,11 +310,12 @@ bool handle_window_event(SDL_Event &e, sfconnection_t &sfconnection, renderer_t 
                 {
                     if(it->second->get_window_id() == e.window.windowID)
                     {
-                        if(it->first + "/" + it->second->get_activity() != last_appandactivity)
+                        if(it->first + "/" + it->second->get_activity() != last_appandactivity || renderer_was_last)
                         {
                             start_app((it->first + "/" + it->second->get_activity()).c_str());
                         }
                         last_appandactivity = it->first + "/" + it->second->get_activity();
+                        renderer_was_last = false;
                         it->second->gained_focus();
                         break;
                     }
@@ -373,7 +349,7 @@ bool handle_window_event(SDL_Event &e, sfconnection_t &sfconnection, renderer_t 
     return false;
 }
 
-void handle_app_event(SDL_Event &e, renderer_t *renderer, map<string, renderer_t*> &windows, appconnection_t &appconnection, std::string &last_appandactivity)
+void handle_app_event(SDL_Event &e, renderer_t *renderer, map<string, renderer_t*> &windows, appconnection_t &appconnection, std::string &last_appandactivity, bool &renderer_was_last)
 {
 #ifdef DEBUG
     cout << "received app event" << endl;
@@ -465,6 +441,7 @@ void handle_app_event(SDL_Event &e, renderer_t *renderer, map<string, renderer_t
                 windows[app] = new renderer_t();
                 windows[app]->init();
 
+                renderer_was_last = false;
                 windows[app]->gained_focus();
                 windows[app]->set_activity(activity);
                 last_appandactivity = app + "/" + activity;
@@ -478,6 +455,10 @@ int main(int argc, char *argv[])
     int err = 0;
     int swipe_hack_dist_x = 0;
     int swipe_hack_dist_y = 0;
+
+    bool postponed_a = false, postponed_w = false;
+    SDL_Event postponed_event;
+    SDL_Event e;
 
     int have_focus = 1;
 
@@ -561,7 +542,6 @@ int main(int argc, char *argv[])
     appconnection.start_thread();
     sensorconnection.start_thread();
 
-    SDL_Event e;
     for(;;)
     {
         if(!have_focus)
@@ -581,19 +561,39 @@ int main(int argc, char *argv[])
             }
             else if(e.type == buffer_sdl_event)
             {
-                handle_buffer_event(e, sfconnection, renderer, windows, last_time, current_time, frames);
+                int failed = handle_buffer_event(e, sfconnection, renderer, windows, last_time, current_time, frames);
+                if(postponed_w)
+                {
+                    if(handle_window_event(postponed_event, sfconnection, renderer, windows, sensorconnection, have_focus, last_appandactivity, renderer_was_last))
+                    {
+                        err = 0;
+                        sfconnection.notify_buffer_done(1);
+                        goto quit;
+                    }
+                    postponed_w = false;
+                }
+                if(postponed_a)
+                {
+                    handle_app_event(postponed_event, renderer, windows, appconnection, last_appandactivity, renderer_was_last);
+                    postponed_a = false;
+                }
+                sfconnection.notify_buffer_done(failed);
             }
             else if(e.type == app_sdl_event)
             {
-                handle_app_event(e, renderer, windows, appconnection, last_appandactivity);
+#if DEBUG
+                cout << "delaying app event" << endl;
+#endif
+                postponed_event = e;
+                postponed_a = true;
             }
             else if(e.type == SDL_WINDOWEVENT)
             {
-                if(handle_window_event(e, sfconnection, renderer, windows, sensorconnection, have_focus, last_appandactivity, renderer_was_last))
-                {
-                    err = 0;
-                    goto quit;
-                }
+#if DEBUG
+                cout << "delaying window event" << endl;
+#endif
+                postponed_event = e;
+                postponed_w = true;
             }
             else if(have_focus)
             {

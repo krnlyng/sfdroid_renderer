@@ -261,13 +261,15 @@ uint32_t renderer_t::get_window_id()
     return SDL_GetWindowID(window);
 }
 
-int renderer_t::save_screen(ANativeWindowBuffer *buffer)
+int renderer_t::save_screen()
 {
     int err = 0;
     int gerr = 0;
     void *buffer_vaddr;
 
-    my_want_to_save_screen = false;
+#if DEBUG
+    cout << "saving screen" << endl;
+#endif
 
     gerr = gralloc_module->lock(gralloc_module, buffer->handle,
         GRALLOC_USAGE_SW_READ_RARELY,
@@ -313,23 +315,22 @@ int renderer_t::dummy_draw(int stride, int height, int format)
     cout << "dummy draw" << endl;
 #endif
 
-    EGLSurface old_surf_r = eglGetCurrentSurface(EGL_READ);
-    EGLSurface old_surf_w = eglGetCurrentSurface(EGL_READ);
-    EGLContext old_ctx = eglGetCurrentContext();
-
-    eglMakeCurrent(egl_dpy, egl_surf, egl_surf, egl_ctx);
     if(last_screen != nullptr)
     {
-        return draw_raw(last_screen, stride, height, format);
+        draw_raw(last_screen, stride, height, format);
+        free(last_screen);
+        last_screen = nullptr;
     }
-    eglMakeCurrent(egl_dpy, old_surf_r, old_surf_w, old_ctx);
 
     return -1;
 }
 
 void renderer_t::lost_focus()
 {
-    my_want_to_save_screen = true;
+    if(save_screen() == 0)
+    {
+        dummy_draw(buffer->stride, buffer->height, buffer->format);
+    }
     eglMakeCurrent(egl_dpy, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
     have_focus = false;
 }
@@ -349,17 +350,13 @@ bool renderer_t::is_active()
 
 int renderer_t::render_buffer(ANativeWindowBuffer *the_buffer, buffer_info_t &info)
 {
+    buffer = the_buffer;
     if(frames_since_focus_gained > 30)
     {
         pfn_eglHybrisWaylandPostBuffer((EGLNativeWindowType)w_egl_window, the_buffer);
         if(eglGetError() != EGL_SUCCESS)
         {
             return 1;
-        }
-        if(last_screen != nullptr)
-        {
-            free(last_screen);
-            last_screen = nullptr;
         }
     }
     else frames_since_focus_gained++;
@@ -385,10 +382,5 @@ void renderer_t::set_activity(string the_activity)
 string renderer_t::get_activity()
 {
     return activity;
-}
-
-bool renderer_t::want_to_save_screen()
-{
-    return my_want_to_save_screen;
 }
 

@@ -19,7 +19,7 @@
 
 class renderer_t {
     public:
-        renderer_t() : have_focus(0), window(nullptr), glcontext(nullptr), last_screen(nullptr), egl_surf(EGL_NO_SURFACE), egl_ctx(EGL_NO_CONTEXT), w_egl_window(nullptr), frames_since_focus_gained(0), my_want_to_save_screen(false) { }
+        renderer_t() : have_focus(0), window(nullptr), glcontext(nullptr), last_screen(nullptr), egl_surf(EGL_NO_SURFACE), egl_ctx(EGL_NO_CONTEXT), w_egl_window(nullptr), frames_since_focus_gained(0), buffer(nullptr) { }
         int init();
         int render_buffer(ANativeWindowBuffer *the_buffer, buffer_info_t &info);
         int get_height();
@@ -31,8 +31,7 @@ class renderer_t {
         void deinit();
         void set_activity(std::string activity);
         std::string get_activity();
-        bool want_to_save_screen();
-        int save_screen(ANativeWindowBuffer *buffer);
+        int save_screen();
         int dummy_draw(int stride, int height, int format);
 
     private:
@@ -57,7 +56,7 @@ class renderer_t {
 
         std::string activity;
 
-        bool my_want_to_save_screen;
+        ANativeWindowBuffer *buffer;
 };
 
 #endif
