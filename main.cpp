@@ -456,8 +456,7 @@ int main(int argc, char *argv[])
     int swipe_hack_dist_x = 0;
     int swipe_hack_dist_y = 0;
 
-    bool postponed_a = false, postponed_w = false;
-    SDL_Event postponed_event;
+    std::vector<SDL_Event> postponed_events;
     SDL_Event e;
 
     int have_focus = 1;
@@ -562,21 +561,19 @@ int main(int argc, char *argv[])
             else if(e.type == buffer_sdl_event)
             {
                 int failed = handle_buffer_event(e, sfconnection, renderer, windows, last_time, current_time, frames);
-                if(postponed_w)
+
+                for(std::vector<SDL_Event>::iterator eit=postponed_events.begin();eit!=postponed_events.end();eit++)
                 {
-                    if(handle_window_event(postponed_event, sfconnection, renderer, windows, sensorconnection, have_focus, last_appandactivity, renderer_was_last))
+                    if(eit->type == SDL_WINDOWEVENT) if(handle_window_event(*eit, sfconnection, renderer, windows, sensorconnection, have_focus, last_appandactivity, renderer_was_last))
                     {
                         err = 0;
                         sfconnection.notify_buffer_done(1);
                         goto quit;
                     }
-                    postponed_w = false;
+                    if(eit->type == app_sdl_event) handle_app_event(*eit, renderer, windows, appconnection, last_appandactivity, renderer_was_last);
                 }
-                if(postponed_a)
-                {
-                    handle_app_event(postponed_event, renderer, windows, appconnection, last_appandactivity, renderer_was_last);
-                    postponed_a = false;
-                }
+                postponed_events.resize(0);
+
                 sfconnection.notify_buffer_done(failed);
             }
             else if(e.type == app_sdl_event)
@@ -584,16 +581,14 @@ int main(int argc, char *argv[])
 #if DEBUG
                 cout << "delaying app event" << endl;
 #endif
-                postponed_event = e;
-                postponed_a = true;
+                postponed_events.push_back(e);
             }
             else if(e.type == SDL_WINDOWEVENT)
             {
 #if DEBUG
                 cout << "delaying window event" << endl;
 #endif
-                postponed_event = e;
-                postponed_w = true;
+                postponed_events.push_back(e);
             }
             else if(have_focus)
             {
