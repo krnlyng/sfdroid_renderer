@@ -101,6 +101,378 @@ bool is_blacklisted(string app)
     return false;
 }
 
+void handle_input_events(SDL_Event &e, uinput_t &uinput, vector<int> &slot_to_fingerId, int width, int height, int swipe_hack_dist_x, int swipe_hack_dist_y)
+{
+    int x, y;
+    int slot;
+    switch(e.type)
+    {
+        case SDL_FINGERUP:
+#if DEBUG
+            cout << "SDL_FINGERUP" << endl;
+#endif
+            slot = find_slot(slot_to_fingerId, e.tfinger.fingerId);
+
+            uinput.send_event(EV_ABS, ABS_MT_SLOT, slot);
+            uinput.send_event(EV_ABS, ABS_MT_TRACKING_ID, -1);
+            uinput.send_event(EV_SYN, SYN_REPORT, 0);
+
+            erase_slot(slot_to_fingerId, e.tfinger.fingerId);
+            break;
+        case SDL_FINGERMOTION:
+#if DEBUG
+            cout << "SDL_FINGERMOTION" << endl;
+#endif
+                slot = find_slot(slot_to_fingerId, e.tfinger.fingerId);
+
+                uinput.send_event(EV_ABS, ABS_MT_SLOT, slot);
+                uinput.send_event(EV_ABS, ABS_MT_TRACKING_ID, e.tfinger.fingerId);
+                uinput.send_event(EV_ABS, ABS_MT_POSITION_X, e.tfinger.x);
+                uinput.send_event(EV_ABS, ABS_MT_POSITION_Y, e.tfinger.y);
+                uinput.send_event(EV_ABS, ABS_MT_PRESSURE, e.tfinger.pressure * MAX_PRESSURE);
+                uinput.send_event(EV_SYN, SYN_REPORT, 0);
+                break;
+            case SDL_FINGERDOWN:
+#if DEBUG
+                cout << "SDL_FINGERDOWN" << endl;
+#endif
+                slot = find_slot(slot_to_fingerId, e.tfinger.fingerId);
+
+                uinput.send_event(EV_ABS, ABS_MT_SLOT, slot);
+                uinput.send_event(EV_ABS, ABS_MT_TRACKING_ID, e.tfinger.fingerId);
+                if(e.tfinger.x <= swipe_hack_dist_x)
+                {
+#if DEBUG
+                    cout << "swipe hack x" << endl;
+#endif
+                    x = 0;
+                }
+                else x = e.tfinger.x;
+                if(e.tfinger.x >= width - swipe_hack_dist_x)
+                {
+#if DEBUG
+                    cout << "swipe hack x" << endl;
+#endif
+                    x = width;
+                }
+                if(e.tfinger.y <= swipe_hack_dist_y)
+                {
+#if DEBUG
+                    cout << "swipe hack y" << endl;
+#endif
+                    y = 0;
+                }
+                else y = e.tfinger.y;
+                if(e.tfinger.y >= height - swipe_hack_dist_y)
+                {
+#if DEBUG
+                    cout << "swipe hack y" << endl;
+#endif
+                    y = height;
+                }
+                uinput.send_event(EV_ABS, ABS_MT_POSITION_X, x);
+                uinput.send_event(EV_ABS, ABS_MT_POSITION_Y, y);
+                uinput.send_event(EV_ABS, ABS_MT_PRESSURE, e.tfinger.pressure * MAX_PRESSURE);
+                uinput.send_event(EV_SYN, SYN_REPORT, 0);
+                break;
+            default:
+                 break;
+    }
+}
+
+void handle_buffer_event(SDL_Event &e, sfconnection_t &sfconnection, renderer_t *renderer, map<string, renderer_t*> &windows, unsigned int &last_time, unsigned int &current_time, int &frames)
+{
+    if(e.user.code == BUFFER)
+    {
+#ifdef DEBUG
+        cout << "buffer received" << endl;
+#endif
+        // sfconnection has a new buffer
+        ANativeWindowBuffer *buffer;
+        buffer_info_t *info;
+
+        buffer = sfconnection.get_current_buffer();
+        info = sfconnection.get_current_info();
+
+        int failed = 1;
+        if(renderer->is_active())
+        {
+            failed = renderer->render_buffer(buffer, *info);
+        }
+        else
+        {
+            if(renderer->want_to_save_screen())
+            {
+                renderer->save_screen(buffer);
+                renderer->dummy_draw(buffer->stride, buffer->height, buffer->format);
+            }
+
+            for(map<string, renderer_t*>::iterator it=windows.begin();it!=windows.end();it++)
+            {
+                if(it->second->is_active())
+                {
+                    failed = it->second->render_buffer(buffer, *info);
+                }
+                else if(it->second->want_to_save_screen())
+                {
+                    it->second->save_screen(buffer);
+                    it->second->dummy_draw(buffer->stride, buffer->height, buffer->format);
+                }
+            }
+        }
+        sfconnection.notify_buffer_done(failed);
+
+        frames++;
+    }
+    else if(e.user.code == NO_BUFFER)
+    {
+#ifdef DEBUG
+        cout << "no buffer received timeout" << endl;
+#endif
+        ANativeWindowBuffer *buffer;
+        buffer_info_t *info;
+
+        buffer = sfconnection.get_current_buffer();
+        info = sfconnection.get_current_info();
+
+        // dummy draw to avoid unresponive message
+        // should be fine as long as surfaceflinger has at least 2 buffers
+        // because if no buffer is sent surfaceflinger should only be modifiying
+        // the other buffers and not the one that was just sent.
+        // we cannot save the screen anymore with the new rendering method therefore
+        // this method.
+        int failed = 1;
+        if(renderer->is_active())
+        {
+            failed = renderer->render_buffer(buffer, *info);
+        }
+        else
+        {
+            if(renderer->want_to_save_screen())
+            {
+                renderer->save_screen(buffer);
+                renderer->dummy_draw(buffer->stride, buffer->height, buffer->format);
+            }
+
+            for(map<string, renderer_t*>::iterator it=windows.begin();it!=windows.end();it++)
+            {
+                if(it->second->is_active())
+                {
+                    failed = it->second->render_buffer(buffer, *info);
+                }
+                else if(it->second->want_to_save_screen())
+                {
+                    it->second->save_screen(buffer);
+                    it->second->dummy_draw(buffer->stride, buffer->height, buffer->format);
+                }
+            }
+        }
+        sfconnection.notify_buffer_done(failed);
+
+        frames++;
+    }
+
+    current_time = SDL_GetTicks();
+    if(current_time > last_time + 1000)
+    {
+        cout << "Frames: " << frames << endl;
+        last_time = current_time;
+        frames = 0;
+    }
+}
+
+bool handle_window_event(SDL_Event &e, sfconnection_t &sfconnection, renderer_t *renderer, map<string, renderer_t*> &windows, sensorconnection_t &sensorconnection, int &have_focus, std::string &last_appandactivity, bool &renderer_was_last)
+{
+#if DEBUG
+    cout << "window event: " << (int)e.window.event << endl;
+#endif
+    switch(e.window.event)
+    {
+        case SDL_WINDOWEVENT_FOCUS_LOST:
+#if DEBUG
+            cout << "focus lost" << endl;
+#endif
+            have_focus = 0;
+            sfconnection.lost_focus();
+            sensorconnection.lost_focus();
+
+            if(renderer->get_window_id() == e.window.windowID)
+            {
+                if(renderer->is_active()) renderer->lost_focus();
+            }
+            else
+            {
+                for(map<string, renderer_t*>::iterator it=windows.begin();it!=windows.end();it++)
+                {
+                    if(it->second->get_window_id() == e.window.windowID)
+                    {
+                        if(it->second->is_active()) it->second->lost_focus();
+                        break;
+                    }
+                }
+            }
+            break;
+        case SDL_WINDOWEVENT_FOCUS_GAINED:
+#if DEBUG
+            cout << "focus gained" << endl;
+#endif
+            wakeup_android();
+            sfconnection.gained_focus();
+            sensorconnection.gained_focus();
+            have_focus = 1;
+            if(renderer->get_window_id() == e.window.windowID)
+            {
+                if(!renderer_was_last)
+                {
+                    go_home();
+                }
+                renderer_was_last = true;
+                renderer->gained_focus();
+            }
+            else
+            {
+                for(map<string, renderer_t*>::iterator it=windows.begin();it!=windows.end();it++)
+                {
+                    if(it->second->get_window_id() == e.window.windowID)
+                    {
+                        if(it->first + "/" + it->second->get_activity() != last_appandactivity)
+                        {
+                            start_app((it->first + "/" + it->second->get_activity()).c_str());
+                        }
+                        last_appandactivity = it->first + "/" + it->second->get_activity();
+                        it->second->gained_focus();
+                        break;
+                    }
+                }
+            }
+            break;
+        case SDL_WINDOWEVENT_CLOSE:
+#if DEBUG
+            cout << "window closed" << endl;
+#endif
+            if(renderer->get_window_id() == e.window.windowID)
+            {
+                return true;
+            }
+            else
+            {
+                for(map<string, renderer_t*>::iterator it=windows.begin();it!=windows.end();it++)
+                {
+                    if(it->second->get_window_id() == e.window.windowID)
+                    {
+                        stop_app(it->first.c_str());
+                        it->second->deinit();
+                        delete it->second;
+                        windows.erase(it);
+                        break;
+                    }
+                }
+            }
+            break;
+    }
+    return false;
+}
+
+void handle_app_event(SDL_Event &e, renderer_t *renderer, map<string, renderer_t*> &windows, appconnection_t &appconnection, std::string &last_appandactivity)
+{
+#ifdef DEBUG
+    cout << "received app event" << endl;
+#endif
+    string appandactivity, app, activity;
+    string::size_type pos;
+    appandactivity = appconnection.get_new_window();
+    pos = appandactivity.find("/");
+
+    if(pos != std::string::npos)
+    {
+        app = appandactivity.substr(0, pos);
+        activity = appandactivity.substr(pos + 1);
+    }
+    else
+    {
+        app = appandactivity;
+        activity = "";
+    }
+
+    if(!is_blacklisted(app))
+    {
+#if DEBUG
+        cout << "new app or closing: " << app << endl;
+#endif
+        // make other windows loose focus.
+        if(renderer->is_active())
+        {
+            renderer->lost_focus();
+        }
+        else
+        {
+            for(map<string, renderer_t*>::iterator it=windows.begin();it!=windows.end();it++)
+            {
+                if(app != it->first)
+                {
+                    if(it->second->is_active())
+                    {
+                        it->second->lost_focus();
+                        break;
+                    }
+                }
+            }
+        }
+
+        map<string, renderer_t*>::iterator the_window = windows.find(app);
+
+        bool is_active = false;
+        // hack to bring window to front. SDL_ShowWindow, SDL_RaiseWindow don't work
+        if(the_window != windows.end())
+        {
+            if(the_window->second != nullptr)
+            {
+                if(!the_window->second->is_active())
+                {
+                    the_window->second->deinit();
+                    delete the_window->second;
+                    windows.erase(the_window);
+                }
+                else if(e.user.code == CLOSE_APP)
+                {
+                    // SDL/wayland crash avoidance
+
+                    stop_app(app.c_str());
+                    // bring renderer to front
+                    if(the_window->second->is_active()) the_window->second->lost_focus();
+
+                    renderer->deinit();
+                    delete renderer;
+                    renderer = new renderer_t();
+                    renderer->init();
+                    the_window->second->deinit();
+                    renderer->gained_focus(true);
+
+                    delete the_window->second;
+                    windows.erase(the_window);
+                }
+                else
+                {
+                    is_active = true;
+                }
+            }
+        }
+
+        if(e.user.code != CLOSE_APP)
+        {
+            if(!is_active)
+            {
+                windows[app] = new renderer_t();
+                windows[app]->init();
+
+                windows[app]->gained_focus();
+                windows[app]->set_activity(activity);
+                last_appandactivity = app + "/" + activity;
+            }
+        }
+    }
+}
+
 int main(int argc, char *argv[])
 {
     int err = 0;
@@ -207,366 +579,25 @@ int main(int argc, char *argv[])
                 err = 0;
                 goto quit;
             }
-
-            if(e.type == buffer_sdl_event)
+            else if(e.type == buffer_sdl_event)
             {
-                if(e.user.code == BUFFER)
+                handle_buffer_event(e, sfconnection, renderer, windows, last_time, current_time, frames);
+            }
+            else if(e.type == app_sdl_event)
+            {
+                handle_app_event(e, renderer, windows, appconnection, last_appandactivity);
+            }
+            else if(e.type == SDL_WINDOWEVENT)
+            {
+                if(handle_window_event(e, sfconnection, renderer, windows, sensorconnection, have_focus, last_appandactivity, renderer_was_last))
                 {
-                    // sfconnection has a new buffer
-                    ANativeWindowBuffer *buffer;
-                    buffer_info_t *info;
-
-                    buffer = sfconnection.get_current_buffer();
-                    info = sfconnection.get_current_info();
-
-                    int failed = 1;
-                    if(renderer->is_active())
-                    {
-                        failed = renderer->render_buffer(buffer, *info);
-                    }
-                    else
-                    {
-                        if(renderer->want_to_save_screen())
-                        {
-                            renderer->save_screen(buffer);
-                            renderer->dummy_draw(buffer->stride, buffer->height, buffer->format);
-                        }
-
-                        for(map<string, renderer_t*>::iterator it=windows.begin();it!=windows.end();it++)
-                        {
-                            if(it->second->is_active())
-                            {
-                                failed = it->second->render_buffer(buffer, *info);
-                            }
-                            else if(it->second->want_to_save_screen())
-                            {
-                                it->second->save_screen(buffer);
-                                it->second->dummy_draw(buffer->stride, buffer->height, buffer->format);
-                            }
-                        }
-                    }
-                    sfconnection.notify_buffer_done(failed);
-
-                    frames++;
-                }
-                else if(e.user.code == NO_BUFFER)
-                {
-                    ANativeWindowBuffer *buffer;
-                    buffer_info_t *info;
-
-                    buffer = sfconnection.get_current_buffer();
-                    info = sfconnection.get_current_info();
-
-                    // dummy draw to avoid unresponive message
-                    // should be fine as long as surfaceflinger has at least 2 buffers
-                    // because if no buffer is sent surfaceflinger should only be modifiying
-                    // the other buffers and not the one that was just sent.
-                    // we cannot save the screen anymore with the new rendering method therefore
-                    // this method.
-                    int failed = 1;
-                    if(renderer->is_active())
-                    {
-                        failed = renderer->render_buffer(buffer, *info);
-                    }
-                    else
-                    {
-                        if(renderer->want_to_save_screen())
-                        {
-                            renderer->save_screen(buffer);
-                            renderer->dummy_draw(buffer->stride, buffer->height, buffer->format);
-                        }
-
-                        for(map<string, renderer_t*>::iterator it=windows.begin();it!=windows.end();it++)
-                        {
-                            if(it->second->is_active())
-                            {
-                                failed = it->second->render_buffer(buffer, *info);
-                            }
-                            else if(it->second->want_to_save_screen())
-                            {
-                                it->second->save_screen(buffer);
-                                it->second->dummy_draw(buffer->stride, buffer->height, buffer->format);
-                            }
-                        }
-                    }
-                    sfconnection.notify_buffer_done(failed);
-
-                    frames++;
-                }
-
-                current_time = SDL_GetTicks();
-                if(current_time > last_time + 1000)
-                {
-                    cout << "Frames: " << frames << endl;
-                    last_time = current_time;
-                    frames = 0;
+                    err = 0;
+                    goto quit;
                 }
             }
-
-            if(e.type == app_sdl_event)
+            else if(have_focus)
             {
-                string appandactivity, app, activity;
-                string::size_type pos;
-                appandactivity = appconnection.get_new_window();
-                pos = appandactivity.find("/");
-
-                if(pos != std::string::npos)
-                {
-                    app = appandactivity.substr(0, pos);
-                    activity = appandactivity.substr(pos + 1);
-                }
-                else
-                {
-                    app = appandactivity;
-                    activity = "";
-                }
-
-                if(!is_blacklisted(app))
-                {
-#if DEBUG
-                    cout << "new app or closing: " << app << endl;
-#endif
-                    // make other windows loose focus.
-                    if(renderer->is_active())
-                    {
-                        renderer->lost_focus();
-                    }
-                    else
-                    {
-                        for(map<string, renderer_t*>::iterator it=windows.begin();it!=windows.end();it++)
-                        {
-                            if(app != it->first)
-                            {
-                                if(it->second->is_active())
-                                {
-                                    it->second->lost_focus();
-                                    break;
-                                }
-                            }
-                        }
-                    }
-
-                    map<string, renderer_t*>::iterator the_window = windows.find(app);
-
-                    bool is_active = false;
-                    // hack to bring window to front. SDL_ShowWindow, SDL_RaiseWindow don't work
-                    if(the_window != windows.end())
-                    {
-                        if(the_window->second != nullptr)
-                        {
-                            if(!the_window->second->is_active())
-                            {
-                                the_window->second->deinit();
-                                delete the_window->second;
-                                windows.erase(the_window);
-                                break;
-                            }
-                            else if(e.user.code == CLOSE_APP)
-                            {
-                                // SDL/wayland crash avoidance
-
-                                stop_app(app.c_str());
-                                // bring renderer to front
-                                if(the_window->second->is_active()) the_window->second->lost_focus();
-
-                                renderer->deinit();
-                                delete renderer;
-                                renderer = new renderer_t();
-                                renderer->init();
-                                renderer->gained_focus(true);
-
-                                the_window->second->deinit();
-                                delete the_window->second;
-                                windows.erase(the_window);
-                            }
-                            else
-                            {
-                                is_active = true;
-                            }
-                        }
-                    }
-
-                    if(e.user.code != CLOSE_APP)
-                    {
-                        if(!is_active)
-                        {
-                            windows[app] = new renderer_t();
-                            windows[app]->init();
-
-                            windows[app]->gained_focus();
-                            windows[app]->set_activity(activity);
-                            last_appandactivity = app + "/" + activity;
-                        }
-                    }
-                }
-            }
-
-            if(e.type == SDL_WINDOWEVENT)
-            {
-                switch(e.window.event)
-                {
-                    case SDL_WINDOWEVENT_FOCUS_LOST:
-#if DEBUG
-                        cout << "focus lost" << endl;
-#endif
-                        have_focus = 0;
-                        sfconnection.lost_focus();
-                        sensorconnection.lost_focus();
-
-                        if(renderer->get_window_id() == e.window.windowID)
-                        {
-                            if(renderer->is_active()) renderer->lost_focus();
-                        }
-                        else
-                        {
-                            for(map<string, renderer_t*>::iterator it=windows.begin();it!=windows.end();it++)
-                            {
-                                if(it->second->get_window_id() == e.window.windowID)
-                                {
-                                    if(it->second->is_active()) it->second->lost_focus();
-                                    break;
-                                }
-                            }
-                        }
-                        break;
-                    case SDL_WINDOWEVENT_FOCUS_GAINED:
-#if DEBUG
-                        cout << "focus gained" << endl;
-#endif
-                        wakeup_android();
-                        sfconnection.gained_focus();
-                        sensorconnection.gained_focus();
-                        have_focus = 1;
-                        if(renderer->get_window_id() == e.window.windowID)
-                        {
-                            if(!renderer_was_last)
-                            {
-                                go_home();
-                            }
-                            renderer_was_last = true;
-                            renderer->gained_focus();
-                        }
-                        else
-                        {
-                            for(map<string, renderer_t*>::iterator it=windows.begin();it!=windows.end();it++)
-                            {
-                                if(it->second->get_window_id() == e.window.windowID)
-                                {
-                                    if(it->first + "/" + it->second->get_activity() != last_appandactivity)
-                                    {
-                                        start_app((it->first + "/" + it->second->get_activity()).c_str());
-                                    }
-                                    last_appandactivity = it->first + "/" + it->second->get_activity();
-                                    it->second->gained_focus();
-                                    break;
-                                }
-                            }
-                        }
-                        break;
-                    case SDL_WINDOWEVENT_CLOSE:
-#if DEBUG
-                        cout << "window closed" << endl;
-#endif
-                        if(renderer->get_window_id() == e.window.windowID)
-                        {
-                            err = 0;
-                            goto quit;
-                        }
-                        else
-                        {
-                            for(map<string, renderer_t*>::iterator it=windows.begin();it!=windows.end();it++)
-                            {
-                                if(it->second->get_window_id() == e.window.windowID)
-                                {
-                                    stop_app(it->first.c_str());
-                                    it->second->deinit();
-                                    delete it->second;
-                                    windows.erase(it);
-                                    break;
-                                }
-                            }
-                        }
-                        break;
-                }
-            }
-
-            if(have_focus)
-            {
-                int x, y;
-                int slot;
-                switch(e.type)
-                {
-                    case SDL_FINGERUP:
-#if DEBUG
-                        cout << "SDL_FINGERUP" << endl;
-#endif
-                        slot = find_slot(slot_to_fingerId, e.tfinger.fingerId);
-
-                        uinput.send_event(EV_ABS, ABS_MT_SLOT, slot);
-                        uinput.send_event(EV_ABS, ABS_MT_TRACKING_ID, -1);
-                        uinput.send_event(EV_SYN, SYN_REPORT, 0);
-
-                        erase_slot(slot_to_fingerId, e.tfinger.fingerId);
-                        break;
-                    case SDL_FINGERMOTION:
-#if DEBUG
-                        cout << "SDL_FINGERMOTION" << endl;
-#endif
-                        slot = find_slot(slot_to_fingerId, e.tfinger.fingerId);
-
-                        uinput.send_event(EV_ABS, ABS_MT_SLOT, slot);
-                        uinput.send_event(EV_ABS, ABS_MT_TRACKING_ID, e.tfinger.fingerId);
-                        uinput.send_event(EV_ABS, ABS_MT_POSITION_X, e.tfinger.x);
-                        uinput.send_event(EV_ABS, ABS_MT_POSITION_Y, e.tfinger.y);
-                        uinput.send_event(EV_ABS, ABS_MT_PRESSURE, e.tfinger.pressure * MAX_PRESSURE);
-                        uinput.send_event(EV_SYN, SYN_REPORT, 0);
-                        break;
-                    case SDL_FINGERDOWN:
-#if DEBUG
-                        cout << "SDL_FINGERDOWN" << endl;
-#endif
-                        slot = find_slot(slot_to_fingerId, e.tfinger.fingerId);
-
-                        uinput.send_event(EV_ABS, ABS_MT_SLOT, slot);
-                        uinput.send_event(EV_ABS, ABS_MT_TRACKING_ID, e.tfinger.fingerId);
-                        if(e.tfinger.x <= swipe_hack_dist_x)
-                        {
-#if DEBUG
-                            cout << "swipe hack x" << endl;
-#endif
-                            x = 0;
-                        }
-                        else x = e.tfinger.x;
-                        if(e.tfinger.x >= renderer->get_width() - swipe_hack_dist_x)
-                        {
-#if DEBUG
-                            cout << "swipe hack x" << endl;
-#endif
-                            x = renderer->get_width();
-                        }
-                        if(e.tfinger.y <= swipe_hack_dist_y)
-                        {
-#if DEBUG
-                            cout << "swipe hack y" << endl;
-#endif
-                            y = 0;
-                        }
-                        else y = e.tfinger.y;
-                        if(e.tfinger.y >= renderer->get_height() - swipe_hack_dist_y)
-                        {
-#if DEBUG
-                            cout << "swipe hack y" << endl;
-#endif
-                            y = renderer->get_height();
-                        }
-                        uinput.send_event(EV_ABS, ABS_MT_POSITION_X, x);
-                        uinput.send_event(EV_ABS, ABS_MT_POSITION_Y, y);
-                        uinput.send_event(EV_ABS, ABS_MT_PRESSURE, e.tfinger.pressure * MAX_PRESSURE);
-                        uinput.send_event(EV_SYN, SYN_REPORT, 0);
-                        break;
-                    default:
-                         break;
-                }
+                handle_input_events(e, uinput, slot_to_fingerId, renderer->get_width(), renderer->get_height(), swipe_hack_dist_x, swipe_hack_dist_y);
             }
         }
     }
