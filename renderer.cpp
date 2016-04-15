@@ -339,10 +339,8 @@ void renderer_t::lost_focus()
     have_focus = false;
 }
 
-void renderer_t::gained_focus(bool no_delay)
+void renderer_t::gained_focus()
 {
-    if(!no_delay) frames_since_focus_gained = 0;
-    else frames_since_focus_gained = 30;
     eglMakeCurrent(egl_dpy, egl_surf, egl_surf, egl_ctx);
     have_focus = true;
 }

@@ -499,7 +499,7 @@ int main(int argc, char *argv[])
         err = 1;
         goto quit;
     }
-    renderer->gained_focus(true);
+    renderer->gained_focus();
 
     buffer_sdl_event = SDL_RegisterEvents(1);
     app_sdl_event = SDL_RegisterEvents(1);

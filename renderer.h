@@ -24,7 +24,7 @@ class renderer_t {
         int render_buffer(ANativeWindowBuffer *the_buffer, buffer_info_t &info);
         int get_height();
         int get_width();
-        void gained_focus(bool no_delay = false);
+        void gained_focus();
         void lost_focus();
         uint32_t get_window_id();
         bool is_active();
