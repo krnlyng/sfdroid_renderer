@@ -256,7 +256,7 @@ int handle_buffer_event(SDL_Event &e, sfconnection_t &sfconnection, renderer_t *
     return failed;
 }
 
-bool handle_window_event(SDL_Event &e, sfconnection_t &sfconnection, renderer_t *renderer, map<string, renderer_t*> &windows, sensorconnection_t &sensorconnection, int &have_focus, std::string &last_appandactivity, bool &renderer_was_last)
+bool handle_window_event(SDL_Event &e, sfconnection_t &sfconnection, renderer_t *renderer, map<string, renderer_t*> &windows, sensorconnection_t &sensorconnection, int &have_focus, std::string &last_appandactivity, bool &renderer_was_last, list<renderer_t*> &windows_to_delete)
 {
 #if DEBUG
     cout << "window event: " << (int)e.window.event << endl;
@@ -321,6 +321,14 @@ bool handle_window_event(SDL_Event &e, sfconnection_t &sfconnection, renderer_t 
                     }
                 }
             }
+            for(list<renderer_t*>::iterator it=windows_to_delete.begin();it!=windows_to_delete.end();it++)
+            {
+#if DEBUG
+                cout << "deleting old window\n" << endl;
+#endif
+                delete *it;
+            }
+            windows_to_delete.clear();
             break;
         case SDL_WINDOWEVENT_CLOSE:
 #if DEBUG
@@ -349,7 +357,7 @@ bool handle_window_event(SDL_Event &e, sfconnection_t &sfconnection, renderer_t 
     return false;
 }
 
-void handle_app_event(SDL_Event &e, renderer_t *&renderer, map<string, renderer_t*> &windows, appconnection_t &appconnection, std::string &last_appandactivity, bool &renderer_was_last)
+void handle_app_event(SDL_Event &e, renderer_t *&renderer, map<string, renderer_t*> &windows, appconnection_t &appconnection, std::string &last_appandactivity, bool &renderer_was_last, list<renderer_t*> &windows_to_delete)
 {
 #ifdef DEBUG
     cout << "received app event" << endl;
@@ -398,7 +406,6 @@ void handle_app_event(SDL_Event &e, renderer_t *&renderer, map<string, renderer_
         map<string, renderer_t*>::iterator the_window = windows.find(app);
 
         bool is_active = false;
-        // hack to bring window to front. SDL_ShowWindow, SDL_RaiseWindow don't work
         if(the_window != windows.end())
         {
             if(the_window->second != nullptr)
@@ -411,20 +418,13 @@ void handle_app_event(SDL_Event &e, renderer_t *&renderer, map<string, renderer_
                 }
                 else if(e.user.code == CLOSE_APP)
                 {
-                    // SDL/wayland crash avoidance
-
                     stop_app(app.c_str());
-                    // bring renderer to front
+
                     if(the_window->second->is_active()) the_window->second->lost_focus();
-
-                    renderer->deinit();
-                    delete renderer;
-                    renderer = new renderer_t();
-                    renderer->init();
                     the_window->second->deinit();
-                    renderer->gained_focus(true);
 
-                    delete the_window->second;
+                    // crash avoidance
+                    windows_to_delete.push_back(the_window->second);
                     windows.erase(the_window);
                 }
                 else
@@ -464,6 +464,7 @@ int main(int argc, char *argv[])
     sfconnection_t sfconnection;
     renderer_t *renderer = new renderer_t();
     map<string, renderer_t*> windows;
+    list<renderer_t*> windows_to_delete;
     appconnection_t appconnection;
     std::string last_appandactivity = "";
     bool renderer_was_last = false;
@@ -564,13 +565,13 @@ int main(int argc, char *argv[])
 
                 for(std::vector<SDL_Event>::iterator eit=postponed_events.begin();eit!=postponed_events.end();eit++)
                 {
-                    if(eit->type == SDL_WINDOWEVENT) if(handle_window_event(*eit, sfconnection, renderer, windows, sensorconnection, have_focus, last_appandactivity, renderer_was_last))
+                    if(eit->type == SDL_WINDOWEVENT) if(handle_window_event(*eit, sfconnection, renderer, windows, sensorconnection, have_focus, last_appandactivity, renderer_was_last, windows_to_delete))
                     {
                         err = 0;
                         sfconnection.notify_buffer_done(1);
                         goto quit;
                     }
-                    if(eit->type == app_sdl_event) handle_app_event(*eit, renderer, windows, appconnection, last_appandactivity, renderer_was_last);
+                    if(eit->type == app_sdl_event) handle_app_event(*eit, renderer, windows, appconnection, last_appandactivity, renderer_was_last, windows_to_delete);
                 }
                 postponed_events.resize(0);
 
@@ -607,6 +608,7 @@ quit:
     {
         stop_app(it->first.c_str());
         it->second->deinit();
+        delete it->second;
     }
     sensorconnection.stop_thread();
     sensorconnection.deinit();

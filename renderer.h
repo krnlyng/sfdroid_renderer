@@ -33,6 +33,7 @@ class renderer_t {
         std::string get_activity();
         int save_screen();
         int dummy_draw(int stride, int height, int format);
+        ~renderer_t();
 
     private:
         int win_width, win_height;

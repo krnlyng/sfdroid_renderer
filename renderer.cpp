@@ -190,17 +190,21 @@ void renderer_t::deinit()
 {
     glDeleteTextures(1, &dummy_tex);
     eglMakeCurrent(egl_dpy, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
-    eglDestroySurface(egl_dpy, egl_surf);
     wl_egl_window_destroy(w_egl_window);
+    if(window)
+    {
+        SDL_DestroyWindow(window);
+    }
+}
+
+renderer_t::~renderer_t()
+{
+    eglDestroySurface(egl_dpy, egl_surf);
     eglDestroyContext(egl_dpy, egl_ctx);
     instances--;
     if(instances == 0)
     {
         eglTerminate(egl_dpy);
-    }
-    if(window)
-    {
-        SDL_DestroyWindow(window);
     }
 }
 
