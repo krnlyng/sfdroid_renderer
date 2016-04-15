@@ -610,6 +610,11 @@ quit:
         it->second->deinit();
         delete it->second;
     }
+    for(list<renderer_t*>::iterator it=windows_to_delete.begin();it!=windows_to_delete.end();it++)
+    {
+        delete *it;
+    }
+    windows_to_delete.clear();
     sensorconnection.stop_thread();
     sensorconnection.deinit();
     sfconnection.stop_thread();
