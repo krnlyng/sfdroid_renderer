@@ -212,7 +212,7 @@ int handle_buffer_event(SDL_Event &e, sfconnection_t &sfconnection, renderer_t *
     }
     else if(e.user.code == NO_BUFFER)
     {
-#ifdef DEBUG
+#if DEBUG
         cout << "no buffer received timeout" << endl;
 #endif
         ANativeWindowBuffer *buffer;
@@ -263,6 +263,7 @@ bool handle_window_event(SDL_Event &e, sfconnection_t &sfconnection, renderer_t 
 #endif
     switch(e.window.event)
     {
+        case SDL_WINDOWEVENT_LEAVE:
         case SDL_WINDOWEVENT_FOCUS_LOST:
 #if DEBUG
             cout << "focus lost" << endl;
@@ -287,6 +288,7 @@ bool handle_window_event(SDL_Event &e, sfconnection_t &sfconnection, renderer_t 
                 }
             }
             break;
+        case SDL_WINDOWEVENT_ENTER:
         case SDL_WINDOWEVENT_FOCUS_GAINED:
 #if DEBUG
             cout << "focus gained" << endl;
@@ -359,7 +361,7 @@ bool handle_window_event(SDL_Event &e, sfconnection_t &sfconnection, renderer_t 
 
 void handle_app_event(SDL_Event &e, renderer_t *&renderer, map<string, renderer_t*> &windows, appconnection_t &appconnection, std::string &last_appandactivity, bool &renderer_was_last, list<renderer_t*> &windows_to_delete)
 {
-#ifdef DEBUG
+#if DEBUG
     cout << "received app event" << endl;
 #endif
     string appandactivity, app, activity;
@@ -586,10 +588,24 @@ int main(int argc, char *argv[])
             }
             else if(e.type == SDL_WINDOWEVENT)
             {
+                if(!have_focus)
+                {
 #if DEBUG
-                cout << "delaying window event" << endl;
+                    cout << "processing window event now" << endl;
 #endif
-                postponed_events.push_back(e);
+                    if(handle_window_event(e, sfconnection, renderer, windows, sensorconnection, have_focus, last_appandactivity, renderer_was_last, windows_to_delete))
+                    {
+                        err = 0;
+                        goto quit;
+                    }
+                }
+                else
+                {
+#if DEBUG
+                    cout << "delaying window event" << endl;
+#endif
+                    postponed_events.push_back(e);
+                }
             }
             else if(have_focus)
             {
