@@ -11,7 +11,7 @@
 
 class sensorconnection_t {
     public:
-        sensorconnection_t() : fd_pass_socket(-1), fd_client(-1), remoteSensorManager(nullptr), accel(nullptr), running(false), have_focus(true) {}
+        sensorconnection_t() : fd_socket(-1), fd_client(-1), remoteSensorManager(nullptr), accel(nullptr), running(false), have_focus(true) {}
         int init();
         void deinit();
         int wait_for_client();
@@ -26,7 +26,7 @@ class sensorconnection_t {
         void lost_focus();
         void gained_focus();
     private:
-        int fd_pass_socket; // listen for surfaceflinger
+        int fd_socket; // listen for surfaceflinger
         int fd_client; // the client (sharebuffer module)
 
         SensorManagerInterface *remoteSensorManager;

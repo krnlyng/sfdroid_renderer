@@ -37,8 +37,8 @@ int sensorconnection_t::init()
     int err = 0;
     struct sockaddr_un addr;
 
-    fd_pass_socket = socket(AF_UNIX, SOCK_STREAM, 0);
-    if(fd_pass_socket < 0)
+    fd_socket = socket(AF_UNIX, SOCK_STREAM, 0);
+    if(fd_socket < 0)
     {
         cerr << "failed to create socket: " << strerror(errno) << endl;
         err = 1;
@@ -51,7 +51,7 @@ int sensorconnection_t::init()
 
     unlink(SENSORS_HANDLE_FILE);
 
-    if(bind(fd_pass_socket, (struct sockaddr*)&addr, sizeof(addr)) < 0)
+    if(bind(fd_socket, (struct sockaddr*)&addr, sizeof(addr)) < 0)
     {
         cerr << "failed to bind socket" << SENSORS_HANDLE_FILE << ": " << strerror(errno) << endl;
         err = 2;
@@ -61,7 +61,7 @@ int sensorconnection_t::init()
 #if DEBUG
     cout << "listening on " << SENSORS_HANDLE_FILE << endl;
 #endif
-    if(listen(fd_pass_socket, 5) < 0)
+    if(listen(fd_socket, 5) < 0)
     {
         cerr << "failed to listen on socket " << SENSORS_HANDLE_FILE << ": " << strerror(errno) << endl;
         err = 3;
@@ -81,7 +81,7 @@ int sensorconnection_t::wait_for_client()
 #if DEBUG
     cout << "waiting for client (sensors module)" << endl;
 #endif
-    if((fd_client = accept(fd_pass_socket, NULL, NULL)) < 0)
+    if((fd_client = accept(fd_socket, NULL, NULL)) < 0)
     {
         cerr << "failed to accept: " << strerror(errno) << endl;
         err = 1;
@@ -327,7 +327,7 @@ bool sensorconnection_t::have_client()
 
 void sensorconnection_t::deinit()
 {
-    if(fd_pass_socket >= 0) close(fd_pass_socket);
+    if(fd_socket >= 0) close(fd_socket);
     if(fd_client >= 0) close(fd_client);
     unlink(SENSORS_HANDLE_FILE);
 }
@@ -341,7 +341,7 @@ void sensorconnection_t::stop_thread()
 {
     running = false;
     if(fd_client >= 0) shutdown(fd_client, SHUT_RDWR);
-    if(fd_pass_socket >= 0) shutdown(fd_pass_socket, SHUT_RDWR);
+    if(fd_socket >= 0) shutdown(fd_socket, SHUT_RDWR);
     my_thread.join();
 }
 
