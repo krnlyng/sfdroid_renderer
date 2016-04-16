@@ -398,6 +398,7 @@ void sfconnection_t::stop_thread()
 {
     running = false;
     if(fd_client >= 0) shutdown(fd_client, SHUT_RDWR);
+    if(fd_pass_socket >= 0) shutdown(fd_pass_socket, SHUT_RDWR);
     my_thread.join();
 }
 
