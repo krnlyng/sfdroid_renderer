@@ -348,7 +348,7 @@ bool handle_window_event(SDL_Event &e, sfconnection_t &sfconnection, renderer_t 
                     {
                         stop_app(it->first.c_str());
                         it->second->deinit();
-                        delete it->second;
+                        windows_to_delete.push_back(it->second);
                         windows.erase(it);
                         break;
                     }
