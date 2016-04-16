@@ -11,7 +11,7 @@
 
 class appconnection_t {
     public:
-        appconnection_t() : fd_socket(-1), fd_client(-1), running(false), have_focus(true) {}
+        appconnection_t() : fd_socket(-1), fd_client(-1), running(false) {}
         int init(uint32_t the_sdl_evenv);
         void deinit();
         int wait_for_client();
@@ -22,9 +22,6 @@ class appconnection_t {
         void thread_loop();
         void stop_thread();
 
-        void lost_focus();
-        void gained_focus();
-
         std::string get_new_window();
     private:
         int fd_socket; // listen for sfdroid_Helpers
@@ -33,8 +30,6 @@ class appconnection_t {
         std::thread my_thread;
 
         std::atomic<bool> running;
-
-        bool have_focus;
 
         uint32_t sdl_event;
         std::string new_window;

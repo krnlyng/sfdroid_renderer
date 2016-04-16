@@ -98,14 +98,7 @@ void appconnection_t::update_timeout()
     struct timeval timeout;
     memset(&timeout, 0, sizeof(timeout));
 
-    if(have_focus)
-    {
-        timeout.tv_usec = SENSOR_SOCKET_TIMEOUT_US;
-    }
-    else
-    {
-        timeout.tv_sec = SENSOR_SOCKET_FOCUS_LOST_TIMEOUT_S;
-    }
+    timeout.tv_sec = APP_SOCKET_TIMEOUT_S;
 
     if(setsockopt(fd_client, SOL_SOCKET, SO_RCVTIMEO, (char *)&timeout, sizeof(timeout)) < 0)
     {
@@ -124,8 +117,6 @@ void appconnection_t::thread_loop()
 
     while(running)
     {
-        if(have_client()) update_timeout();
-
         if(!have_client())
         {
             wait_for_client();
@@ -249,15 +240,5 @@ void appconnection_t::stop_thread()
     if(fd_client >= 0) shutdown(fd_client, SHUT_RDWR);
     if(fd_socket >= 0) shutdown(fd_socket, SHUT_RDWR);
     my_thread.join();
-}
-
-void appconnection_t::lost_focus()
-{
-    have_focus = false;
-}
-
-void appconnection_t::gained_focus()
-{
-    have_focus = true;
 }
 
