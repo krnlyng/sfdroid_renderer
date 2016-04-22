@@ -452,11 +452,18 @@ void handle_app_event(SDL_Event &e, renderer_t *&renderer, map<string, renderer_
     }
 }
 
+void usage(const char *name)
+{
+    cout << name << " [--multiwindow|-m]" << endl;
+    cout << "\t--multiwindow|-m android apps get their own windows" << endl;
+}
+
 int main(int argc, char *argv[])
 {
     int err = 0;
     int swipe_hack_dist_x = 0;
     int swipe_hack_dist_y = 0;
+    bool multiwindow = false;
 
     std::vector<SDL_Event> postponed_events;
     SDL_Event e;
@@ -480,6 +487,26 @@ int main(int argc, char *argv[])
 
     unsigned int last_time = 0, current_time = 0;
     int frames = 0;
+
+    if(argc == 2)
+    {
+        if((std::string)argv[1] == "--multiwindow" || (std::string)argv[1] == "-m")
+        {
+            multiwindow = true;
+        }
+        else
+        {
+            cout << "invalid argument" << endl;
+            usage(argv[0]);
+            return 8;
+        }
+    }
+    else if(argc > 2)
+    {
+        cout << "too many arguments" << endl;
+        usage(argv[0]);
+        return 7;
+    }
 
 #if DEBUG
     cout << "setting up sfdroid directory" << endl;
@@ -506,7 +533,7 @@ int main(int argc, char *argv[])
     buffer_sdl_event = SDL_RegisterEvents(1);
     app_sdl_event = SDL_RegisterEvents(1);
 
-    if(appconnection.init(app_sdl_event) != 0)
+    if(multiwindow) if(appconnection.init(app_sdl_event) != 0)
     {
         err = 1;
         goto quit;
@@ -541,7 +568,10 @@ int main(int argc, char *argv[])
     }
 
     sfconnection.start_thread();
-    appconnection.start_thread();
+    if(multiwindow)
+    {
+        appconnection.start_thread();
+    }
     sensorconnection.start_thread();
 
     for(;;)
@@ -573,7 +603,7 @@ int main(int argc, char *argv[])
                         sfconnection.notify_buffer_done(1);
                         goto quit;
                     }
-                    if(eit->type == app_sdl_event) handle_app_event(*eit, renderer, windows, appconnection, last_appandactivity, renderer_was_last, windows_to_delete);
+                    if(multiwindow) if(eit->type == app_sdl_event) handle_app_event(*eit, renderer, windows, appconnection, last_appandactivity, renderer_was_last, windows_to_delete);
                 }
                 postponed_events.resize(0);
 
@@ -616,8 +646,11 @@ int main(int argc, char *argv[])
 
 quit:
     uinput.deinit();
-    appconnection.stop_thread();
-    appconnection.deinit();
+    if(multiwindow)
+    {
+        appconnection.stop_thread();
+        appconnection.deinit();
+    }
     renderer->deinit();
     delete renderer;
     for(map<string, renderer_t*>::iterator it=windows.begin();it!=windows.end();it++)
