@@ -175,8 +175,10 @@ int renderer_t::draw_raw(void *data, int width, int height, int pixel_format)
     }
     else if(pixel_format == HAL_PIXEL_FORMAT_RGB_565)
     {
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0,
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, 1024, 1024, 0,
                 GL_RGB, GL_UNSIGNED_SHORT_5_6_5, data);
+        glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, width, height,
+                        GL_RGB, GL_UNSIGNED_SHORT_5_6_5, data);
     }
     else
     {
