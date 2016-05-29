@@ -5,14 +5,14 @@ OBJ         += $(patsubst %.cpp, %.o, $(filter %.cpp, $(SRC)))
 DEP         := $(OBJ:.o=.d)
 
 CFLAGS      := -Wall -Werror -std=gnu99
-CXXFLAGS    := -Wall -Werror -std=c++11
+CXXFLAGS    := -Wall -Werror -std=gnu++0x
 LDFLAGS     :=
 LDLIBS      :=
 
-CFLAGS		+= `pkg-config --cflags sdl2` `pkg-config --cflags glesv1_cm` -I/usr/include/nitdroid-headers
-CXXFLAGS	+= `pkg-config --cflags sdl2` `pkg-config --cflags glesv1_cm` -I/usr/include/nitdroid-headers
+CFLAGS		+= `pkg-config --cflags sdl` `pkg-config --cflags glesv1_cm` -I/usr/include/nitdroid-headers
+CXXFLAGS	+= `pkg-config --cflags sdl` `pkg-config --cflags glesv1_cm` -I/usr/include/nitdroid-headers
 
-LDLIBS		+= `pkg-config --libs sdl2` `pkg-config --libs glesv1_cm` -lhardware
+LDLIBS		+= `pkg-config --libs sdl` `pkg-config --libs glesv1_cm` -lhardware
 
 DEBUG       ?= 0
 VERBOSE     ?= 0

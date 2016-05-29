@@ -2,7 +2,6 @@
 #define __SF_CONNECTION_H__
 
 #include <thread>
-#include <atomic>
 #include <vector>
 
 #include <hardware/hardware.h>
@@ -12,7 +11,7 @@
 
 class sfconnection_t {
     public:
-        sfconnection_t() : current_status(0), fd_pass_socket(-1), fd_client(-1), running(false), buffer_done(false), current_handle(nullptr), timeout_count(0), sdl_event(-1), have_focus(true) {}
+        sfconnection_t() : current_status(0), fd_pass_socket(-1), fd_client(-1), running(false), buffer_done(false), current_handle(NULL), timeout_count(0), sdl_event(-1), have_focus(true) {}
         int init(uint32_t the_sdl_event);
         void deinit();
         int wait_for_client();
@@ -39,8 +38,8 @@ class sfconnection_t {
         int fd_client; // the client (sharebuffer module)
 
         std::thread my_thread;
-        std::atomic<bool> running;
-        std::atomic<bool> buffer_done;
+        volatile bool running;
+        volatile bool buffer_done;
 
         buffer_info_t current_info;
         native_handle_t *current_handle;

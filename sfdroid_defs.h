@@ -29,6 +29,7 @@ struct buffer_info_t
     int32_t pixel_format;
 };
 
+#include <cstring>
 #include <hardware/gralloc.h>
 #include <hardware/hardware.h>
 

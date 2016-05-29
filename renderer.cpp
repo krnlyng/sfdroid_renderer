@@ -45,32 +45,22 @@ int renderer_t::init()
     cout << "creating SDL window" << endl;
 #endif
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 1);
-    window = SDL_CreateWindow("sfdroid", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, 0, 0, SDL_WINDOW_OPENGL | SDL_WINDOW_FULLSCREEN);
-    if(window == NULL)
+    screen = SDL_SetVideoMode(0, 0, 0, SDL_OPENGLES | SDL_FULLSCREEN);
+    if(screen == NULL)
     {
         cerr << "failed to create SDL window" << endl;
         err = 2;
         goto quit;
     }
 
-    SDL_GetWindowSize(window, &win_width, &win_height);
+    SDL_ShowCursor(0);
+
+    win_width = screen->w;
+    win_height = screen->h;
 
 #if DEBUG
     cout << "window width: " << win_width << " height: " << win_height << endl;
 #endif
-
-#if DEBUG
-    cout << "creating SDL GL context" << endl;
-#endif
-    glcontext = SDL_GL_CreateContext(window);
-    if(glcontext == NULL)
-    {
-        cerr << "failed to create SDL GL Context" << endl;
-        err = 3;
-        goto quit;
-    }
-
-    SDL_GL_SetSwapInterval(1);
 
 #if DEBUG
     cout << "setting up gl" << endl;
@@ -115,9 +105,7 @@ void renderer_t::deinit()
 {
     glDeleteTextures(1, &tex);
     if(last_screen) free(last_screen);
-    last_screen = nullptr;
-    if(glcontext) SDL_GL_DeleteContext(glcontext);
-    if(window) SDL_DestroyWindow(window);
+    last_screen = NULL;
     SDL_Quit();
 }
 
@@ -159,11 +147,9 @@ int renderer_t::render_buffer(native_handle_t *the_buffer, buffer_info_t &info)
     gralloc_module->unlock(gralloc_module, the_buffer);
 
     if(last_screen) free(last_screen);
-    last_screen = nullptr;
+    last_screen = NULL;
 
 quit:
-    if(buffer) delete buffer;
-    buffer = nullptr;
     if(registered)
     {
         gralloc_module->unregisterBuffer(gralloc_module, the_buffer);
@@ -218,7 +204,7 @@ int renderer_t::draw_raw(void *data, int width, int height, int pixel_format)
     if(gl_err != GL_NO_ERROR) cout << "glGetError(): " << gl_err << endl;
 
     glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
-    SDL_GL_SwapWindow(window);
+    SDL_GL_SwapBuffers();
 
 quit:
     return err;
@@ -229,7 +215,7 @@ int renderer_t::save_screen(int pixel_format)
     int err;
 
     if(last_screen) free(last_screen);
-    last_screen = nullptr;
+    last_screen = NULL;
 
     if(pixel_format == HAL_PIXEL_FORMAT_RGBA_8888 || pixel_format == HAL_PIXEL_FORMAT_RGBX_8888)
     {
@@ -262,7 +248,7 @@ int renderer_t::dummy_draw()
     glMatrixMode(GL_PROJECTION);
     glLoadIdentity();
     glOrthof(0, win_width, 0, win_height, 0, 1);
-    if(last_screen != nullptr)
+    if(last_screen != NULL)
     {
         return draw_raw(last_screen, win_width, win_height, last_pixel_format);
     }

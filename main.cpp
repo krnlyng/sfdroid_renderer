@@ -86,6 +86,38 @@ void erase_slot(vector<int> &slot_to_fingerId, int fingerId)
     }
 }
 
+#define SDL_TICKS_PASSED(A, B)  ((Sint32)((B) - (A)) <= 0)
+
+int
+SDL_WaitEventTimeout(SDL_Event * event, int timeout)
+{
+    Uint32 expiration = 0;
+
+    if (timeout > 0)
+        expiration = SDL_GetTicks() + timeout;
+
+    for (;;) {
+        SDL_PumpEvents();
+        switch (SDL_PeepEvents(event, 1, SDL_GETEVENT, -1)) {
+        case -1:
+            return 0;
+        case 1:
+            return 1;
+        case 0:
+            if (timeout == 0) {
+                /* Polling and no events, just return */
+                return 0;
+            }
+            if (timeout > 0 && SDL_TICKS_PASSED(SDL_GetTicks(), expiration)) { 
+                /* Timeout expired and no events */
+                return 0;
+            }
+            SDL_Delay(10);
+            break;
+        }
+    }
+}
+
 int main(int argc, char *argv[])
 {
     int err = 0;
@@ -124,7 +156,7 @@ int main(int argc, char *argv[])
     cout << "swipe hack dist (x,y): (" << swipe_hack_dist_x << "," << swipe_hack_dist_y << ")" << endl;
 #endif
 
-    our_sdl_event = SDL_RegisterEvents(1);
+    our_sdl_event = SDL_USEREVENT;
 
     if(sfconnection.init(our_sdl_event) != 0)
     {
@@ -199,25 +231,26 @@ int main(int argc, char *argv[])
                 }
             }
 
-            if(e.type == SDL_WINDOWEVENT)
+            if(e.type == SDL_ACTIVEEVENT)
             {
-                switch(e.window.event)
+                if(e.active.state == SDL_APPACTIVE && e.active.gain == 0)
                 {
-                    case SDL_WINDOWEVENT_FOCUS_LOST:
 #if DEBUG
-                        cout << "focus lost" << endl;
+                    cout << "focus lost" << endl;
 #endif
-                        have_focus = 0;
-                        sfconnection.lost_focus();
-                        break;
-                    case SDL_WINDOWEVENT_FOCUS_GAINED:
+                    have_focus = 0;
+                    sfconnection.lost_focus();
+                    break;
+                }
+                else if(e.active.state == SDL_APPACTIVE && e.active.gain == 1)
+                {
 #if DEBUG
-                        cout << "focus gained" << endl;
+                    cout << "focus gained" << endl;
 #endif
-                        wakeup_android();
-                        sfconnection.gained_focus();
-                        have_focus = 1;
-                        break;
+                    wakeup_android();
+                    sfconnection.gained_focus();
+                    have_focus = 1;
+                    break;
                 }
             }
 
@@ -227,63 +260,63 @@ int main(int argc, char *argv[])
                 int slot;
                 switch(e.type)
                 {
-                    case SDL_FINGERUP:
+                    case SDL_MOUSEBUTTONUP:
 #if DEBUG
-                        cout << "SDL_FINGERUP" << endl;
+                        cout << "SDL_MOUSEBUTTONUP" << endl;
 #endif
-                        slot = find_slot(slot_to_fingerId, e.tfinger.fingerId);
+                        slot = find_slot(slot_to_fingerId, e.button.which);
 
-                        uinput.send_event(EV_ABS, ABS_MT_SLOT, slot);
+                        uinput.send_event(EV_ABS, ABS_MT_BLOB_ID, slot);
                         uinput.send_event(EV_ABS, ABS_MT_TRACKING_ID, -1);
                         uinput.send_event(EV_SYN, SYN_REPORT, 0);
 
-                        erase_slot(slot_to_fingerId, e.tfinger.fingerId);
+                        erase_slot(slot_to_fingerId, e.button.which);
                         break;
-                    case SDL_FINGERMOTION:
+                    case SDL_MOUSEMOTION:
 #if DEBUG
-                        cout << "SDL_FINGERMOTION" << endl;
+                        cout << "SDL_MOUSEMOTION" << endl;
 #endif
-                        slot = find_slot(slot_to_fingerId, e.tfinger.fingerId);
+                        slot = find_slot(slot_to_fingerId, e.motion.which);
 
-                        uinput.send_event(EV_ABS, ABS_MT_SLOT, slot);
-                        uinput.send_event(EV_ABS, ABS_MT_TRACKING_ID, e.tfinger.fingerId);
-                        uinput.send_event(EV_ABS, ABS_MT_POSITION_X, e.tfinger.x);
-                        uinput.send_event(EV_ABS, ABS_MT_POSITION_Y, e.tfinger.y);
-                        uinput.send_event(EV_ABS, ABS_MT_PRESSURE, e.tfinger.pressure * MAX_PRESSURE);
+                        uinput.send_event(EV_ABS, ABS_MT_BLOB_ID, slot);
+                        uinput.send_event(EV_ABS, ABS_MT_TRACKING_ID, e.motion.which);
+                        uinput.send_event(EV_ABS, ABS_MT_POSITION_X, e.motion.x);
+                        uinput.send_event(EV_ABS, ABS_MT_POSITION_Y, e.motion.y);
+//                        uinput.send_event(EV_ABS, ABS_MT_PRESSURE, 1 * MAX_PRESSURE);
                         uinput.send_event(EV_SYN, SYN_REPORT, 0);
                         break;
-                    case SDL_FINGERDOWN:
+                    case SDL_MOUSEBUTTONDOWN:
 #if DEBUG
-                        cout << "SDL_FINGERDOWN" << endl;
+                        cout << "SDL_MOUSEBUTTONDOWN" << endl;
 #endif
-                        slot = find_slot(slot_to_fingerId, e.tfinger.fingerId);
+                        slot = find_slot(slot_to_fingerId, e.button.which);
 
-                        uinput.send_event(EV_ABS, ABS_MT_SLOT, slot);
-                        uinput.send_event(EV_ABS, ABS_MT_TRACKING_ID, e.tfinger.fingerId);
-                        if(e.tfinger.x <= swipe_hack_dist_x)
+                        uinput.send_event(EV_ABS, ABS_MT_BLOB_ID, slot);
+                        uinput.send_event(EV_ABS, ABS_MT_TRACKING_ID, e.button.which);
+                        if(e.button.x <= swipe_hack_dist_x)
                         {
 #if DEBUG
                             cout << "swipe hack x" << endl;
 #endif
                             x = 0;
                         }
-                        else x = e.tfinger.x;
-                        if(e.tfinger.x >= renderer.get_width() - swipe_hack_dist_x)
+                        else x = e.button.x;
+                        if(e.button.x >= renderer.get_width() - swipe_hack_dist_x)
                         {
 #if DEBUG
                             cout << "swipe hack x" << endl;
 #endif
                             x = renderer.get_width();
                         }
-                        if(e.tfinger.y <= swipe_hack_dist_y)
+                        if(e.button.y <= swipe_hack_dist_y)
                         {
 #if DEBUG
                             cout << "swipe hack y" << endl;
 #endif
                             y = 0;
                         }
-                        else y = e.tfinger.y;
-                        if(e.tfinger.y >= renderer.get_height() - swipe_hack_dist_y)
+                        else y = e.button.y;
+                        if(e.button.y >= renderer.get_height() - swipe_hack_dist_y)
                         {
 #if DEBUG
                             cout << "swipe hack y" << endl;
@@ -292,7 +325,7 @@ int main(int argc, char *argv[])
                         }
                         uinput.send_event(EV_ABS, ABS_MT_POSITION_X, x);
                         uinput.send_event(EV_ABS, ABS_MT_POSITION_Y, y);
-                        uinput.send_event(EV_ABS, ABS_MT_PRESSURE, e.tfinger.pressure * MAX_PRESSURE);
+//                        uinput.send_event(EV_ABS, ABS_MT_PRESSURE, 1 * MAX_PRESSURE);
                         uinput.send_event(EV_SYN, SYN_REPORT, 0);
                         break;
                     default:

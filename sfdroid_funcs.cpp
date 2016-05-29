@@ -23,6 +23,8 @@
 #include <sys/socket.h>
 #include <cstdlib>
 #include <iostream>
+#include <cstring>
+#include <errno.h>
 
 using namespace std;
 

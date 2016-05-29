@@ -24,6 +24,8 @@
 #include <linux/uinput.h>
 #include <sys/time.h>
 #include <fcntl.h>
+#include <errno.h>
+#include <cstdio>
 
 #include "sfdroid_defs.h"
 #include "uinput.h"
@@ -90,7 +92,7 @@ int uinput_t::init(int win_width, int win_height)
         goto quit;
     }
 
-    if(ioctl(fd_uinput, UI_SET_ABSBIT, ABS_MT_SLOT) < 0)
+    if(ioctl(fd_uinput, UI_SET_ABSBIT, ABS_MT_BLOB_ID) < 0)
     {
         cerr << "UI_SET_ABSBIT ABS_MT_SLOT ioctl failed" << endl;
         err = 23;
@@ -111,20 +113,22 @@ int uinput_t::init(int win_width, int win_height)
         goto quit;
     }
 
+/*
     if(ioctl(fd_uinput, UI_SET_ABSBIT, ABS_MT_PRESSURE) < 0)
     {
         cerr << "UI_SET_ABSBIT ABS_MT_PRESSURE ioctl failed" << endl;
         err = 28;
         goto quit;
     }
-
+*/
+/*
     if(ioctl(fd_uinput, UI_SET_PROPBIT, INPUT_PROP_DIRECT) < 0)
     {
         cerr << "UI_SET_PROPBIT INPUT_PROP_DIRECT ioctl failed" << endl;
         err = 26;
         goto quit;
     }
-
+*/
     memset(&uidev, 0, sizeof(uidev));
 
     snprintf(uidev.name, UINPUT_MAX_NAME_SIZE, "sfdroid-input");
@@ -133,10 +137,12 @@ int uinput_t::init(int win_width, int win_height)
     uidev.absmax[ABS_MT_POSITION_X] = win_width;
     uidev.absmin[ABS_MT_POSITION_Y] = 0;
     uidev.absmax[ABS_MT_POSITION_Y] = win_height;
+/*
     uidev.absmin[ABS_MT_PRESSURE] = 0;
     uidev.absmax[ABS_MT_PRESSURE] = MAX_PRESSURE;
+*/
     // hmm
-    uidev.absmax[ABS_MT_SLOT] = 255;
+    uidev.absmax[ABS_MT_BLOB_ID] = 255;
     uidev.absmax[ABS_MT_TRACKING_ID] = 255;
 
     uidev.id.bustype = BUS_VIRTUAL;

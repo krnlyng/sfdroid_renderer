@@ -17,6 +17,7 @@
  *  along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  */
+#define _GLIBCXX_USE_SCHED_YIELD
 
 #include <iostream>
 
@@ -50,7 +51,7 @@ int sfconnection_t::init(uint32_t the_sdl_event)
 
     unlink(SHAREBUFFER_HANDLE_FILE);
 
-    if(bind(fd_pass_socket, (struct sockaddr*)&addr, sizeof(addr)) < 0)
+    if(::bind(fd_pass_socket, (struct sockaddr*)&addr, sizeof(addr)) < 0)
     {
         cerr << "failed to bind socket" << SHAREBUFFER_HANDLE_FILE << ": " << strerror(errno) << endl;
         err = 2;

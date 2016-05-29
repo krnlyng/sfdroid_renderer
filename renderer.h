@@ -11,7 +11,7 @@
 
 class renderer_t {
     public:
-        renderer_t() : last_pixel_format(-1), last_screen(nullptr), window(nullptr), glcontext(nullptr), gralloc_module(nullptr) {}
+        renderer_t() : last_pixel_format(-1), last_screen(NULL), screen(NULL), gralloc_module(NULL) {}
         int init();
         int render_buffer(native_handle_t *the_buffer, buffer_info_t &info);
         int get_height();
@@ -27,8 +27,7 @@ class renderer_t {
         void *last_screen;
         GLuint tex;
 
-        SDL_Window *window;
-        SDL_GLContext glcontext;
+        SDL_Surface *screen;
 
         gralloc_module_t *gralloc_module;
 };
