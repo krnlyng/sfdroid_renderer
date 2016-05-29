@@ -109,23 +109,13 @@ void renderer_t::deinit()
     SDL_Quit();
 }
 
-int renderer_t::render_buffer(native_handle_t *the_buffer, buffer_info_t &info)
+int renderer_t::render_buffer(ANativeWindowBuffer *the_buffer, buffer_info_t &info)
 {
     void *buffer_vaddr = NULL;
-    int registered = 0;
     int err = 0;
     int gerr = 0;
 
-    gerr = gralloc_module->registerBuffer(gralloc_module, the_buffer);
-    if(gerr)
-    {
-        cerr << "registerBuffer failed: " << strerror(-gerr) << endl;
-        err = 1;
-        goto quit;
-    }
-    registered = 1;
-
-    gerr = gralloc_module->lock(gralloc_module, the_buffer,
+    gerr = gralloc_module->lock(gralloc_module, the_buffer->handle,
         GRALLOC_USAGE_SW_READ_RARELY,
         0, 0, info.width, info.height,
         &buffer_vaddr);
@@ -144,18 +134,12 @@ int renderer_t::render_buffer(native_handle_t *the_buffer, buffer_info_t &info)
     glOrthof(0, win_width, win_height, 0, 0, 1);
     draw_raw(buffer_vaddr, info.stride, info.height, info.pixel_format);
 
-    gralloc_module->unlock(gralloc_module, the_buffer);
+    gralloc_module->unlock(gralloc_module, the_buffer->handle);
 
     if(last_screen) free(last_screen);
     last_screen = NULL;
 
 quit:
-    if(registered)
-    {
-        gralloc_module->unregisterBuffer(gralloc_module, the_buffer);
-        registered = 0;
-    }
-
     return err;
 }
 

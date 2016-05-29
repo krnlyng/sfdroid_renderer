@@ -199,13 +199,13 @@ int main(int argc, char *argv[])
                 if(e.user.code == BUFFER)
                 {
                     // sfconnection has a new buffer
-                    native_handle_t *handle;
+                    ANativeWindowBuffer *buffer;
                     buffer_info_t *info;
 
-                    handle = sfconnection.get_current_handle();
+                    buffer = sfconnection.get_current_buffer();
                     info = sfconnection.get_current_info();
 
-                    int failed = renderer.render_buffer(handle, *info);
+                    int failed = renderer.render_buffer(buffer, *info);
                     sfconnection.notify_buffer_done(failed);
 
                     new_buffer = true;

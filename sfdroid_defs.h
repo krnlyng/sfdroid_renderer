@@ -35,6 +35,7 @@ struct buffer_info_t
 
 int recv_native_handle(int fd, native_handle_t **handle, struct buffer_info_t *info);
 int send_status(int fd, int failed);
+void free_handle(native_handle_t *handle);
 
 #endif
 

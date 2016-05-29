@@ -8,12 +8,13 @@
 
 #include <hardware/hardware.h>
 #include <hardware/gralloc.h>
+#include <system/window.h>
 
 class renderer_t {
     public:
         renderer_t() : last_pixel_format(-1), last_screen(NULL), screen(NULL), gralloc_module(NULL) {}
         int init();
-        int render_buffer(native_handle_t *the_buffer, buffer_info_t &info);
+        int render_buffer(ANativeWindowBuffer *the_buffer, buffer_info_t &info);
         int get_height();
         int get_width();
         int save_screen(int pixel_format);
